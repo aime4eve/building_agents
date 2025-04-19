@@ -1,0 +1,23 @@
+# Zip files
+*.zip
+*.rar
+*.7z
+
+# Binary files
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Cache and build directories
+__pycache__/
+*.py[cod]
+build/
+dist/
+*.egg-info/
+
+# IDE specific files
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
