@@ -19,5 +19,6 @@ dist/
 # IDE specific files
 .vscode/
 .idea/
+.trae/
 *.sublime-workspace
 *.sublime-project
