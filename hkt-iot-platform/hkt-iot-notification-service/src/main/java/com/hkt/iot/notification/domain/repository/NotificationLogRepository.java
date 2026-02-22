@@ -68,4 +68,14 @@ public interface NotificationLogRepository {
      * 批量保存日志
      */
     void batchSave(List<NotificationLog> logs);
+
+    /**
+     * 根据租户ID和状态统计日志数量
+     */
+    long countByTenantIdAndStatus(String tenantId, String status);
+
+    /**
+     * 根据租户ID和时间范围统计日志数量
+     */
+    long countByTenantIdAndDateRange(String tenantId, Instant start, Instant end);
 }

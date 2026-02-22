@@ -317,18 +317,22 @@ public class NotificationRequest {
             this.status = NotificationStatus.FAILED;
         } else {
             this.status = NotificationStatus.PENDING;
-            calculateNextRetryTime();
+            incrementRetryCountAndCalculateNextRetryTime();
         }
         this.updatedAt = Instant.now();
     }
 
     /**
-     * 计算下次重试时间（指数退避）
+     * 增加重试次数并计算下次重试时间（指数退避策略：1min/5min/15min）
      */
-    private void calculateNextRetryTime() {
-        long delaySeconds = (long) Math.pow(2, this.retryCount) * 60;
-        this.nextRetryAt = Instant.now().plusSeconds(delaySeconds);
+    private void incrementRetryCountAndCalculateNextRetryTime() {
         this.retryCount++;
+        long delayMinutes = switch (this.retryCount) {
+            case 1 -> 1;      // 第 1 次重试：1 分钟后
+            case 2 -> 5;      // 第 2 次重试：5 分钟后
+            default -> 15;    // 第 3 次及以后：15 分钟后
+        };
+        this.nextRetryAt = Instant.now().plusMinutes(delayMinutes);
     }
 
     /**

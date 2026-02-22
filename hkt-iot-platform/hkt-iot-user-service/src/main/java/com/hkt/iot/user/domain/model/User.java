@@ -1,6 +1,7 @@
 package com.hkt.iot.user.domain.model;
 
 import com.hkt.iot.domain.model.Entity;
+import com.hkt.iot.user.domain.event.UserCreatedEvent;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -11,7 +12,7 @@ import java.util.*;
 
 /**
  * 用户实体
- * 基于DDL: user表
+ * 基于 DDL: user 表
  *
  * @author HKT IoT Team
  */
@@ -164,6 +165,16 @@ public class User extends Entity<Long> {
         user.createdBy = createdBy;
         user.updatedBy = createdBy;
         user.version = 0L;
+        
+        // 发布用户创建事件
+        user.registerDomainEvent(new UserCreatedEvent(
+                user.id,
+                user.username,
+                user.email,
+                user.tenantId,
+                user.createdAt
+        ));
+        
         return user;
     }
 
@@ -201,7 +212,7 @@ public class User extends Entity<Long> {
         this.failedLoginCount++;
         this.updatedAt = LocalDateTime.now();
 
-        // 连续失败5次锁定账户30分钟
+        // 连续失败 5 次锁定账户 30 分钟
         if (this.failedLoginCount >= 5) {
             this.lock(LocalDateTime.now().plusMinutes(30));
         }
@@ -229,7 +240,7 @@ public class User extends Entity<Long> {
     }
 
     /**
-     * 激活MFA
+     * 激活 MFA
      */
     public void enableMfa(String mfaSecret) {
         this.isMfaEnabled = true;
@@ -238,7 +249,7 @@ public class User extends Entity<Long> {
     }
 
     /**
-     * 禁用MFA
+     * 禁用 MFA
      */
     public void disableMfa() {
         this.isMfaEnabled = false;

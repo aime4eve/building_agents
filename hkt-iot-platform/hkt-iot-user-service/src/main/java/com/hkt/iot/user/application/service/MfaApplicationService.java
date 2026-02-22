@@ -3,6 +3,8 @@ package com.hkt.iot.user.application.service;
 import com.hkt.iot.common.core.exception.BizException;
 import com.hkt.iot.common.core.result.ResultCode;
 import com.hkt.iot.common.security.totp.TotpUtil;
+import com.hkt.iot.user.domain.event.MfaConfigEnabledEvent;
+import com.hkt.iot.user.domain.event.MfaVerifiedEvent;
 import com.hkt.iot.user.domain.model.MfaConfig;
 import com.hkt.iot.user.domain.model.MfaDevice;
 import com.hkt.iot.user.domain.model.User;
@@ -12,6 +14,7 @@ import com.hkt.iot.user.domain.repository.UserRepository;
 import com.hkt.iot.user.application.dto.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,7 +25,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * MFA多因素认证应用服务
+ * MFA 多因素认证应用服务
  *
  * @author HKT IoT Team
  */
@@ -34,16 +37,17 @@ public class MfaApplicationService {
     private final MfaConfigRepository mfaConfigRepository;
     private final MfaDeviceRepository mfaDeviceRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
-     * 启用TOTP认证
+     * 启用 TOTP 认证
      */
     @Transactional
     public MfaSetupResponse setupTotp(Long userId, Long tenantId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BizException(ResultCode.USER_NOT_EXIST));
 
-        // 检查是否已启用TOTP
+        // 检查是否已启用 TOTP
         MfaConfig existingConfig = mfaConfigRepository.findByUserIdAndMfaType(userId, MfaConfig.MfaType.TOTP);
         if (existingConfig != null && existingConfig.isConfigured()) {
             throw new BizException(ResultCode.MFA_ALREADY_ENABLED);
@@ -67,10 +71,10 @@ public class MfaApplicationService {
 
         mfaConfigRepository.save(config);
 
-        // 生成QR码URL
+        // 生成 QR 码 URL
         String qrCodeUrl = TotpUtil.getQrCodeUrl(user.getUsername(), secret, "HKT-IoT-Platform");
 
-        log.info("设置TOTP MFA: userId={}", userId);
+        log.info("设置 TOTP MFA: userId={}", userId);
 
         return MfaSetupResponse.builder()
                 .secret(secret)
@@ -81,7 +85,7 @@ public class MfaApplicationService {
     }
 
     /**
-     * 验证并启用TOTP
+     * 验证并启用 TOTP
      */
     @Transactional
     public void verifyAndEnableTotp(Long userId, String code) {
@@ -90,27 +94,21 @@ public class MfaApplicationService {
             throw new BizException(ResultCode.MFA_NOT_SETUP);
         }
 
-        // 验证TOTP码
+        // 验证 TOTP 码
         if (!TotpUtil.verifyCode(config.getSecretKey(), code)) {
             throw new BizException(ResultCode.MFA_CODE_INVALID);
         }
 
-        // 启用MFA
+        // 启用 MFA
         config.enable();
         config.setAsPrimary();
         mfaConfigRepository.save(config);
 
-        // 更新用户MFA状态
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BizException(ResultCode.USER_NOT_EXIST));
-        user.enableMfa(config.getSecretKey());
-        userRepository.save(user);
-
-        log.info("启用TOTP MFA成功: userId={}", userId);
+undefined
     }
 
     /**
-     * 禁用MFA
+     * 禁用 MFA
      */
     @Transactional
     public void disableMfa(Long userId, MfaConfig.MfaType mfaType) {
@@ -122,12 +120,12 @@ public class MfaApplicationService {
         config.disable();
         mfaConfigRepository.save(config);
 
-        // 检查是否还有其他启用的MFA方式
+        // 检查是否还有其他启用的 MFA 方式
         List<MfaConfig> allConfigs = mfaConfigRepository.findByUserId(userId);
         boolean hasEnabledMfa = allConfigs.stream()
                 .anyMatch(MfaConfig::isConfigured);
 
-        // 更新用户MFA状态
+        // 更新用户 MFA 状态
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BizException(ResultCode.USER_NOT_EXIST));
         if (!hasEnabledMfa) {
@@ -135,11 +133,11 @@ public class MfaApplicationService {
         }
         userRepository.save(user);
 
-        log.info("禁用MFA成功: userId={}, type={}", userId, mfaType);
+        log.info("禁用 MFA 成功：userId={}, type={}", userId, mfaType);
     }
 
     /**
-     * 获取用户的MFA配置列表
+     * 获取用户的 MFA 配置列表
      */
     public List<MfaConfigResponse> getUserMfaConfigs(Long userId) {
         List<MfaConfig> configs = mfaConfigRepository.findByUserId(userId);
@@ -150,7 +148,7 @@ public class MfaApplicationService {
     }
 
     /**
-     * 设置主要MFA方式
+     * 设置主要 MFA 方式
      */
     @Transactional
     public void setPrimaryMfa(Long userId, Long configId) {
@@ -166,11 +164,11 @@ public class MfaApplicationService {
             mfaConfigRepository.save(c);
         });
 
-        log.info("设置主要MFA方式: userId={}, configId={}", userId, configId);
+        log.info("设置主要 MFA 方式：userId={}, configId={}", userId, configId);
     }
 
     /**
-     * 注册MFA设备
+     * 注册 MFA 设备
      */
     @Transactional
     public void registerMfaDevice(Long userId, Long tenantId, MfaDeviceRegisterRequest request) {
@@ -188,11 +186,11 @@ public class MfaApplicationService {
 
         mfaDeviceRepository.save(device);
 
-        log.info("注册MFA设备: userId={}, deviceType={}", userId, request.getDeviceType());
+        log.info("注册 MFA 设备：userId={}, deviceType={}", userId, request.getDeviceType());
     }
 
     /**
-     * 获取用户的MFA设备列表
+     * 获取用户的 MFA 设备列表
      */
     public List<MfaDeviceResponse> getUserMfaDevices(Long userId) {
         List<MfaDevice> devices = mfaDeviceRepository.findByUserId(userId);
@@ -203,7 +201,7 @@ public class MfaApplicationService {
     }
 
     /**
-     * 移除MFA设备
+     * 移除 MFA 设备
      */
     @Transactional
     public void removeMfaDevice(Long userId, Long deviceId) {
@@ -217,11 +215,11 @@ public class MfaApplicationService {
         device.revoke();
         mfaDeviceRepository.save(device);
 
-        log.info("移除MFA设备: userId={}, deviceId={}", userId, deviceId);
+        log.info("移除 MFA 设备：userId={}, deviceId={}", userId, deviceId);
     }
 
     /**
-     * 验证MFA码
+     * 验证 MFA 码
      */
     public boolean verifyMfaCode(Long userId, String code, MfaConfig.MfaType mfaType) {
         MfaConfig config = mfaConfigRepository.findByUserIdAndMfaType(userId, mfaType);

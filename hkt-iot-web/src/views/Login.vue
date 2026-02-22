@@ -477,128 +477,461 @@ const getMfaTypeName = (type: MfaDeviceType) => {
 }
 </script>
 
-<style scoped>
+<style scoped lang="less">
+// 品牌色变量
+@primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+@primary-color: #1890ff;
+@success-color: #52c41a;
+@warning-color: #faad14;
+@error-color: #ff4d4f;
+
+// 动画
+@transition-base: all 0.3s ease;
+@transition-slow: all 0.5s ease;
+
 .login-container {
   width: 100%;
   height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: @primary-gradient;
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+  overflow: hidden;
+
+  // 动态背景装饰
+  &::before {
+    content: '';
+    position: absolute;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+    border-radius: 50%;
+    top: -200px;
+    left: -200px;
+    animation: float 6s ease-in-out infinite;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%);
+    border-radius: 50%;
+    bottom: -150px;
+    right: -150px;
+    animation: float 8s ease-in-out infinite reverse;
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(30px, 30px) scale(1.05); }
 }
 
 .login-box {
-  width: 450px;
-  background: #fff;
-  border-radius: 16px;
-  padding: 48px 40px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  width: 460px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 24px;
+  padding: 56px 48px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    0 32px 80px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  position: relative;
+  z-index: 1;
+  animation: slideUp 0.6s ease-out;
+
+  &:hover {
+    box-shadow:
+      0 12px 40px rgba(0, 0, 0, 0.15),
+      0 40px 100px rgba(0, 0, 0, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .login-header {
   text-align: center;
   margin-bottom: 40px;
+
+  .logo-icon {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 20px;
+    background: @primary-gradient;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    font-weight: 700;
+    color: #fff;
+    box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+    transition: @transition-base;
+    cursor: pointer;
+
+    &:hover {
+      transform: scale(1.08) rotate(5deg);
+      box-shadow: 0 12px 32px rgba(102, 126, 234, 0.5);
+    }
+  }
+
+  h1 {
+    font-size: 26px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  p {
+    font-size: 14px;
+    color: #8c8c8c;
+    font-weight: 400;
+  }
 }
 
-.logo-icon {
-  width: 64px;
-  height: 64px;
-  margin: 0 auto 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  font-weight: 600;
-  color: #fff;
-}
-
-.login-header h1 {
-  font-size: 24px;
-  font-weight: 600;
-  color: #1a1a1a;
-  margin-bottom: 8px;
-}
-
-.login-header p {
-  font-size: 14px;
-  color: #8c8c8c;
-}
-
-.login-form {
-  margin-bottom: 24px;
-}
-
+// 表单样式
+.login-form,
 .mfa-form {
   margin-bottom: 24px;
 }
 
+:deep(.ant-form-item) {
+  margin-bottom: 20px;
+  transition: @transition-base;
+
+  &:hover {
+    .ant-input-affix-wrapper {
+      border-color: fade(@primary-color, 50%);
+      box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+    }
+  }
+}
+
+:deep(.ant-input-affix-wrapper) {
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid #e8e8e8;
+  background: #fafafa;
+  transition: @transition-base;
+  font-size: 15px;
+
+  &:focus,
+  &:focus-within {
+    background: #fff;
+    border-color: @primary-color;
+    box-shadow: 0 0 0 3px rgba(24, 144, 255, 0.1);
+  }
+
+  .ant-input {
+    font-size: 15px;
+
+    &::placeholder {
+      color: #bfbfbf;
+    }
+  }
+
+  .ant-input-prefix {
+    color: #bfbfbf;
+    margin-right: 12px;
+    font-size: 16px;
+    transition: @transition-base;
+  }
+}
+
+:deep(.ant-form-item:hover .ant-input-affix-wrapper .ant-input-prefix) {
+  color: @primary-color;
+}
+
+:deep(.ant-input-password) {
+  .ant-input-suffix {
+    color: #bfbfbf;
+    transition: @transition-base;
+
+    &:hover {
+      color: @primary-color;
+    }
+  }
+}
+
+// 复选框
+:deep(.ant-checkbox-wrapper) {
+  font-size: 14px;
+  color: #666;
+  transition: @transition-base;
+
+  &:hover {
+    color: #333;
+  }
+
+  .ant-checkbox-checked {
+    .ant-checkbox-inner {
+      background-color: @primary-color;
+      border-color: @primary-color;
+    }
+  }
+}
+
+// 提交按钮
+:deep(.ant-btn-primary) {
+  height: 50px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 12px;
+  background: @primary-gradient;
+  border: none;
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+  transition: @transition-base;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(102, 126, 234, 0.5);
+    filter: brightness(1.05);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  &[disabled] {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+// MFA 相关样式
 .mfa-alert {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 12px 16px;
+  background: rgba(24, 144, 255, 0.08);
+  border-radius: 12px;
+  border: 1px solid rgba(24, 144, 255, 0.2);
+  color: @primary-color;
+  font-weight: 500;
 }
 
 .mfa-types {
   margin-bottom: 24px;
   text-align: center;
-}
 
-.mfa-types .ant-radio-group {
+  :deep(.ant-radio-group) {
     display: flex;
     justify-content: center;
     gap: 8px;
+    flex-wrap: wrap;
   }
 
+  :deep(.ant-radio-button-wrapper) {
+    border-radius: 10px;
+    padding: 10px 20px;
+    height: auto;
+    font-size: 14px;
+    transition: @transition-base;
+
+    &:hover {
+      transform: translateY(-2px);
+    }
+
+    &.ant-radio-button-wrapper-checked {
+      background: @primary-gradient;
+      border-color: transparent;
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+
+      &::before {
+        display: none;
+      }
+    }
+  }
+}
+
+// TOTP QR 码
 .mfa-totp .qr-code {
   text-align: center;
   margin-bottom: 24px;
-  padding: 16px;
-  background: #f5f5f5;
-  border-radius: 8px;
+  padding: 24px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(250,250,250,0.95) 100%);
+  border-radius: 16px;
+  border: 2px solid rgba(102, 126, 234, 0.1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+
+  :deep(.ant-qrcode) {
+    padding: 8px;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  }
 }
 
 .qr-tip {
   font-size: 13px;
   color: #8c8c8c;
-  margin-top: 8px;
+  margin-top: 16px;
+  font-weight: 500;
 }
 
+// 备用码
 .backup-codes {
   margin-top: 16px;
+
+  :deep(.ant-collapse) {
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #e8e8e8;
+
+    .ant-collapse-header {
+      background: #fafafa;
+      font-weight: 500;
+      padding: 14px 16px !important;
+    }
+
+    .ant-collapse-content-box {
+      padding: 20px;
+      background: #fff;
+    }
+  }
+
+  .backup-codes-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+
+    .ant-tag {
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, rgba(24, 144, 255, 0.1) 0%, rgba(24, 144, 255, 0.05) 100%);
+      border: 1px solid rgba(24, 144, 255, 0.2);
+      color: @primary-color;
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+  }
 }
 
-.backup-codes-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.backup-codes-list .ant-tag {
-  font-family: 'Courier New', monospace;
-  font-size: 14px;
-  padding: 4px 8px;
-}
-
+// SMS/Email 验证码
 .mfa-sms,
 .mfa-email {
   margin-bottom: 24px;
+
+  :deep(.ant-alert) {
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 16px !important;
+  }
+
+  :deep(.ant-row) {
+    align-items: center;
+
+    .ant-input-affix-wrapper {
+      width: 100%;
+    }
+
+    .ant-btn {
+      height: 46px;
+      border-radius: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+
+      &:disabled {
+        opacity: 0.5;
+      }
+    }
+  }
 }
 
+// 返回链接
 .mfa-back {
   text-align: center;
-  margin-top: 16px;
+  margin-top: 20px;
+
+  a {
+    color: #8c8c8c;
+    text-decoration: none;
+    font-size: 14px;
+    transition: @transition-base;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+
+    &:hover {
+      color: @primary-color;
+      transform: translateX(-4px);
+    }
+  }
 }
 
-.mfa-back a {
-  color: #1890ff;
-  text-decoration: none;
-}
-
+// 页脚
 .login-footer {
   text-align: center;
-  color: #8c8c8c;
-  font-size: 13px;
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid #f0f0f0;
+
+  p {
+    color: #bfbfbf;
+    font-size: 13px;
+
+    code {
+      background: #f5f5f5;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      color: @primary-color;
+      font-weight: 600;
+    }
+  }
+}
+
+// 响应式
+@media (max-width: 768px) {
+  .login-box {
+    width: calc(100% - 32px);
+    padding: 40px 24px;
+    margin: 16px;
+  }
+
+  .login-header {
+    margin-bottom: 32px;
+
+    .logo-icon {
+      width: 60px;
+      height: 60px;
+      font-size: 24px;
+    }
+
+    h1 {
+      font-size: 22px;
+    }
+  }
+
+  .mfa-types {
+    :deep(.ant-radio-button-wrapper) {
+      flex: 1;
+      text-align: center;
+    }
+  }
 }
 </style>

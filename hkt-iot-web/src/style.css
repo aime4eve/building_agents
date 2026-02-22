@@ -1,11 +1,15 @@
+/* ========================================
+   华宽通智能体平台 - 基础样式
+   ======================================== */
+
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
+  font-family: var(--hkt-font-family);
+  line-height: var(--hkt-line-height-base);
   font-weight: 400;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  color-scheme: light;
+  color: var(--hkt-text-primary);
+  background-color: var(--hkt-bg-layout);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -13,67 +17,215 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
+/* 暗色模式支持 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+  }
 }
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
   min-width: 320px;
   min-height: 100vh;
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+#app {
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  text-align: left;
 }
 
+/* 卡片基础样式 */
+.card {
+  padding: 2em;
+  background: var(--hkt-bg-base);
+  border-radius: var(--hkt-radius-md);
+  box-shadow: var(--hkt-shadow-sm);
+  transition: box-shadow var(--hkt-transition-base);
+}
+
+.card:hover {
+  box-shadow: var(--hkt-shadow-hover);
+}
+
+/* 链接样式 */
+a {
+  font-weight: 500;
+  color: var(--hkt-primary);
+  text-decoration: inherit;
+}
+
+a:hover {
+  color: var(--hkt-primary-hover);
+}
+
+/* 按钮基础样式 */
 button {
-  border-radius: 8px;
+  border-radius: var(--hkt-radius-sm);
   border: 1px solid transparent;
   padding: 0.6em 1.2em;
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
+  background-color: var(--hkt-bg-base);
   cursor: pointer;
-  transition: border-color 0.25s;
+  transition: all var(--hkt-transition-base);
 }
+
 button:hover {
-  border-color: #646cff;
+  border-color: var(--hkt-primary);
+  color: var(--hkt-primary);
 }
+
 button:focus,
 button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  outline: 2px solid var(--hkt-primary);
+  outline-offset: 2px;
 }
 
-.card {
-  padding: 2em;
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
-#app {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+/* 输入框基础样式 */
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: 1em;
+  padding: 0.5em 0.75em;
+  border: 1px solid var(--hkt-border);
+  border-radius: var(--hkt-radius-sm);
+  background-color: var(--hkt-bg-base);
+  color: var(--hkt-text-primary);
+  transition: all var(--hkt-transition-fast);
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--hkt-primary);
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--hkt-text-disabled);
+}
+
+/* 禁用状态 */
+input:disabled,
+textarea:disabled,
+select:disabled {
+  background-color: var(--hkt-bg-tertiary);
+  cursor: not-allowed;
+}
+
+/* 列表样式 */
+ul, ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* 表格基础样式 */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--hkt-bg-base);
+}
+
+th, td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--hkt-border-light);
+}
+
+th {
+  font-weight: 600;
+  color: var(--hkt-text-primary);
+  background: var(--hkt-bg-secondary);
+}
+
+tr:hover {
+  background: var(--hkt-bg-secondary);
+}
+
+/* 徽章/标签样式 */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--hkt-radius-xl);
+}
+
+.badge-primary {
+  background: rgba(24, 144, 255, 0.1);
+  color: var(--hkt-primary);
+}
+
+.badge-success {
+  background: rgba(82, 196, 26, 0.1);
+  color: var(--hkt-success);
+}
+
+.badge-warning {
+  background: rgba(250, 173, 20, 0.1);
+  color: var(--hkt-warning);
+}
+
+.badge-error {
+  background: rgba(255, 77, 79, 0.1);
+  color: var(--hkt-error);
+}
+
+/* 工具提示 */
+.tooltip {
+  position: relative;
+  display: inline-block;
+}
+
+/* 分割线 */
+.divider {
+  height: 1px;
+  background-color: var(--hkt-border-light);
+  margin: var(--hkt-spacing-lg) 0;
+}
+
+.divider-vertical {
+  width: 1px;
+  height: 1em;
+  background-color: var(--hkt-border);
+  margin: 0 var(--hkt-spacing-sm);
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* 选中状态 */
+::selection {
+  background-color: var(--hkt-primary);
+  color: #fff;
+}
+
+/* 焦点可见 */
+:focus-visible {
+  outline: 2px solid var(--hkt-primary);
+  outline-offset: 2px;
+}
+
+/* 打印样式 */
+@media print {
+  body {
+    background: white;
   }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
+
+  .no-print {
+    display: none !important;
   }
 }

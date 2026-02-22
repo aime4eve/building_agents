@@ -9,12 +9,10 @@ import com.hkt.iot.user.domain.repository.*;
 import com.hkt.iot.user.application.dto.*;
 import com.hkt.iot.user.application.event.UserLoginEvent;
 import com.hkt.iot.user.application.event.UserLogoutEvent;
-import com.hkt.iot.user.domain.event.TenantCreatedEvent;
+import com.hkt.iot.user.domain.event.UserLoggedInEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,6 +38,8 @@ public class AuthService {
     private final MfaChallengeRepository mfaChallengeRepository;
     private final RoleRepository roleRepository;
     private final UserRoleRepository userRoleRepository;
+    private final RolePermissionRepository rolePermissionRepository;
+    private final PermissionRepository permissionRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -73,7 +73,7 @@ public class AuthService {
             throw new BizException(ResultCode.PASSWORD_ERROR);
         }
 
-        // 5. 检查是否启用MFA
+        // 5. 检查是否启用 MFA
         List<MfaConfig> mfaConfigs = mfaConfigRepository.findByUserId(user.getId());
         MfaConfig primaryMfa = mfaConfigs.stream()
                 .filter(MfaConfig::isPrimary)
@@ -82,7 +82,7 @@ public class AuthService {
                 .orElse(null);
 
         if (primaryMfa != null && !request.isSkipMfa()) {
-            // 创建MFA挑战
+            // 创建 MFA 挑战
             return createMfaChallenge(user, tenant, primaryMfa);
         }
 
@@ -92,7 +92,7 @@ public class AuthService {
     }
 
     /**
-     * MFA验证
+     * MFA 验证
      */
     @Transactional
     public LoginResponse verifyMfa(MfaVerificationRequest request, String ipAddress) {
@@ -105,7 +105,7 @@ public class AuthService {
             throw new BizException(ResultCode.MFA_CHALLENGE_EXPIRED);
         }
 
-        // 3. 验证MFA码
+        // 3. 验证 MFA 码
         if (!challenge.verifyCode(request.getCode())) {
             challenge.recordFailedAttempt();
             mfaChallengeRepository.save(challenge);
@@ -128,14 +128,16 @@ public class AuthService {
     }
 
     /**
-     * 创建MFA挑战
+     * 创建 MFA 挑战
      */
     private LoginResponse createMfaChallenge(User user, Tenant tenant, MfaConfig mfaConfig) {
         MfaChallenge challenge = MfaChallenge.create(
                 user.getId(),
                 tenant.getId(),
+                UUID.randomUUID().toString(),
                 mfaConfig.getMfaType(),
                 mfaConfig.getSecretKey(),
+                "TOTP",
                 "web-client",
                 "browser",
                 null,
@@ -161,7 +163,7 @@ public class AuthService {
         user.recordLogin(ipAddress);
         userRepository.save(user);
 
-        // 2. 创建SSO会话
+        // 2. 创建 SSO 会话
         String sessionId = UUID.randomUUID().toString();
         LocalDateTime expiresAt = LocalDateTime.now().plusHours(24);
         String sessionToken = jwtTokenProvider.generateSessionToken(user.getId(), tenant.getId(), sessionId);
@@ -180,7 +182,7 @@ public class AuthService {
         );
         ssoSessionRepository.save(session);
 
-        // 3. 生成JWT令牌
+        // 3. 生成 JWT 令牌
         List<String> roles = getUserRoles(user.getId());
         List<String> permissions = getUserPermissions(user.getId());
 
@@ -195,7 +197,7 @@ public class AuthService {
 
         String refreshToken = jwtTokenProvider.generateRefreshToken(user.getId(), sessionId);
 
-        // 4. 发布登录事件
+        // 4. 发布登录事件（应用层）
         eventPublisher.publishEvent(new UserLoginEvent(
                 user.getId(),
                 tenant.getId(),
@@ -204,7 +206,16 @@ public class AuthService {
                 LocalDateTime.now()
         ));
 
-        // 5. 构建响应
+        // 5. 发布用户登录领域事件
+        eventPublisher.publishEvent(new UserLoggedInEvent(
+                user.getId(),
+                user.getUsername(),
+                tenant.getId(),
+                ipAddress,
+                LocalDateTime.now()
+        ));
+
+        // 6. 构建响应
         return LoginResponse.builder()
                 .requireMfa(false)
                 .accessToken(accessToken)
@@ -233,7 +244,7 @@ public class AuthService {
             throw new BizException(ResultCode.TOKEN_INVALID);
         }
 
-        // 2. 获取用户ID和会话ID
+        // 2. 获取用户 ID 和会话 ID
         Long userId = jwtTokenProvider.getUserIdFromRefreshToken(request.getRefreshToken());
         String sessionId = jwtTokenProvider.getSessionIdFromRefreshToken(request.getRefreshToken());
 
@@ -341,7 +352,29 @@ public class AuthService {
      * 获取用户权限
      */
     private List<String> getUserPermissions(Long userId) {
-        // TODO: 实现权限查询逻辑
-        return Collections.emptyList();
+        List<UserRole> userRoles = userRoleRepository.findByUserId(userId);
+        if (userRoles.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 获取所有角色 ID
+        List<Long> roleIds = userRoles.stream()
+                .map(UserRole::getRoleId)
+                .collect(Collectors.toList());
+
+        // 查询所有角色权限关联
+        Set<String> permissions = new HashSet<>();
+        for (Long roleId : roleIds) {
+            List<RolePermission> rolePermissions = rolePermissionRepository.findByRoleId(roleId);
+            for (RolePermission rolePermission : rolePermissions) {
+                Permission permission = permissionRepository.findById(rolePermission.getPermissionId()).orElse(null);
+                if (permission != null && Permission.PermissionStatus.ACTIVE.equals(permission.getStatus())) {
+                    String permissionCode = permission.getPermissionCode();
+                    permissions.add(permissionCode);
+                }
+            }
+        }
+
+        return new ArrayList<>(permissions);
     }
 }

@@ -21,7 +21,11 @@
       "Bash(dir \"D:\\\\ai-agentic\")",
       "Bash(npx vue-tsc:*)",
       "Bash(mvn compile:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(findstr:*)",
+      "Bash(ls:*)",
+      "Bash(head:*)"
     ]
   }
 }

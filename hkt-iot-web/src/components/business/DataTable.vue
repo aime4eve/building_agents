@@ -1,18 +1,18 @@
 <template>
-  <div class="data-table">
-    <a-card :bordered="false">
+  <div class="data-table-component">
+    <a-card :bordered="false" class="table-card" :body-style="{ padding: '20px' }">
       <!-- 搜索表单 -->
-      <div v-if="showSearch" class="search-form">
-        <a-form layout="inline" :model="searchForm" class="form">
+      <div v-if="showSearch" class="search-form-wrapper">
+        <a-form layout="inline" :model="searchForm" class="search-form">
           <slot name="search-form" :form="searchForm">
             <!-- 默认搜索表单 -->
           </slot>
-          <a-form-item>
+          <a-form-item class="search-actions">
             <a-space>
-              <a-button type="primary" @click="handleSearch">
+              <a-button type="primary" @click="handleSearch" class="btn-search">
                 <SearchOutlined /> 查询
               </a-button>
-              <a-button @click="handleReset">
+              <a-button @click="handleReset" class="btn-reset">
                 <ReloadOutlined /> 重置
               </a-button>
             </a-space>
@@ -21,36 +21,40 @@
       </div>
 
       <!-- 操作栏 -->
-      <div v-if="$slots['table-actions'] || showTableActions" class="table-actions">
+      <div v-if="$slots['table-actions'] || showTableActions" class="table-toolbar">
         <slot name="table-actions">
-          <a-space>
-            <a-button type="primary" @click="$emit('add')">
+          <a-space class="toolbar-left">
+            <a-button type="primary" @click="$emit('add')" class="btn-add">
               <PlusOutlined /> 新增
             </a-button>
-            <a-button type="primary" ghost @click="$emit('export')">
+            <a-button type="primary" ghost @click="$emit('export')" class="btn-export">
               <DownloadOutlined /> 导出
             </a-button>
           </a-space>
+          <slot name="toolbar-right"></slot>
         </slot>
       </div>
 
       <!-- 表格 -->
-      <a-table
-        v-bind="$attrs"
-        :columns="columns"
-        :data-source="dataSource"
-        :loading="loading"
-        :pagination="paginationConfig"
-        :row-selection="rowSelectionConfig"
-        :row-key="rowKey"
-        :scroll="{ x: scrollX }"
-        @change="handleTableChange"
-      >
-        <!-- 默认插槽 -->
-        <template v-for="slot in Object.keys($slots)" #[slot]="slotProps">
-          <slot :name="slot" v-bind="slotProps"></slot>
-        </template>
-      </a-table>
+      <div class="table-wrapper">
+        <a-table
+          v-bind="$attrs"
+          :columns="columns"
+          :data-source="dataSource"
+          :loading="loading"
+          :pagination="paginationConfig"
+          :row-selection="rowSelectionConfig"
+          :row-key="rowKey"
+          :scroll="{ x: scrollX }"
+          :class="'styled-table'"
+          @change="handleTableChange"
+        >
+          <!-- 默认插槽 -->
+          <template v-for="slot in Object.keys($slots)" #[slot]="slotProps">
+            <slot :name="slot" v-bind="slotProps"></slot>
+          </template>
+        </a-table>
+      </div>
     </a-card>
   </div>
 </template>
@@ -209,22 +213,163 @@ watch(
 fetchData()
 </script>
 
-<style scoped>
-.data-table {
-  padding: 0;
-}
+<style scoped lang="less">
+@primary-color: #1890ff;
+@success-color: #52c41a;
+@border-radius: 12px;
+@shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+@transition-base: all 0.2s ease;
 
-.search-form {
-  margin-bottom: 16px;
-}
+.data-table-component {
+  .table-card {
+    border-radius: @border-radius;
+    box-shadow: @shadow-md;
+    transition: @transition-base;
 
-.search-form .form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
+    &:hover {
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+    }
+  }
 
-.table-actions {
-  margin-bottom: 16px;
+  // 搜索表单
+  .search-form-wrapper {
+    background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
+    padding: 20px;
+    border-radius: @border-radius;
+    margin-bottom: 20px;
+    border: 1px solid #f0f0f0;
+
+    .search-form {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: flex-end;
+
+      :deep(.ant-input),
+      :deep(.ant-select-selector) {
+        border-radius: 8px;
+        transition: @transition-base;
+
+        &:hover {
+          border-color: @primary-color;
+        }
+      }
+    }
+
+    .search-actions {
+      margin-left: auto;
+
+      .ant-btn {
+        border-radius: 8px;
+        padding: 6px 20px;
+        font-weight: 500;
+
+        &.btn-search {
+          background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+          border: none;
+          box-shadow: 0 2px 8px rgba(24, 144, 255, 0.3);
+
+          &:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(24, 144, 255, 0.4);
+          }
+        }
+
+        &.btn-reset {
+          &:hover {
+            border-color: @primary-color;
+            color: @primary-color;
+          }
+        }
+      }
+    }
+  }
+
+  // 表格工具栏
+  .table-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+
+    .toolbar-left {
+      .ant-btn {
+        border-radius: 8px;
+        padding: 6px 16px;
+        font-weight: 500;
+        transition: @transition-base;
+
+        &:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(24, 144, 255, 0.3);
+        }
+      }
+    }
+  }
+
+  // 表格样式
+  .table-wrapper {
+    :deep(.ant-table) {
+      font-size: 14px;
+      border-radius: @border-radius;
+      overflow: hidden;
+
+      thead > tr > th {
+        background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
+        color: #262626;
+        font-weight: 600;
+        padding: 14px 16px;
+        border: none;
+        white-space: nowrap;
+
+        &:first-child {
+          border-top-left-radius: @border-radius;
+        }
+
+        &:last-child {
+          border-top-right-radius: @border-radius;
+        }
+      }
+
+      tbody > tr {
+        transition: @transition-base;
+
+        &:hover {
+          background: #fafafa;
+        }
+
+        > td {
+          padding: 14px 16px;
+          border-color: #f0f0f0;
+        }
+      }
+    }
+
+    // 分页器样式
+    :deep(.ant-pagination) {
+      margin-top: 16px;
+
+      .ant-pagination-item {
+        border-radius: 8px;
+        transition: @transition-base;
+
+        &:hover {
+          border-color: @primary-color;
+          transform: translateY(-1px);
+        }
+
+        &.ant-pagination-item-active {
+          background: @primary-color;
+          border-color: @primary-color;
+
+          a {
+            color: #fff;
+          }
+        }
+      }
+    }
+  }
 }
 </style>

@@ -81,13 +81,13 @@ public class PageResult<T> implements Serializable {
      * 创建空分页结果
      */
     public static <T> PageResult<T> empty() {
-        return new PageResult<>(1L, 10L, 0L, List.of());
+        return new PageResult<T>(1L, 10L, 0L, List.of());
     }
 
     /**
      * 创建空分页结果（指定页码和大小）
      */
     public static <T> PageResult<T> empty(Long current, Long size) {
-        return new PageResult<>(current, size, 0L, List.of());
+        return new PageResult<T>(current, size, 0L, List.of());
     }
 }

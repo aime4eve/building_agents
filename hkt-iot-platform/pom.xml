@@ -24,6 +24,7 @@
         <module>hkt-iot-scene-service</module>
         <module>hkt-iot-smart-apps-service</module>
         <module>hkt-iot-notification-service</module>
+        <module>hkt-iot-notification-service-client</module>
         <module>hkt-iot-gateway</module>
     </modules>
 

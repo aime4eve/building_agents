@@ -9,8 +9,8 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * MFA挑战实体
- * 基于DDL: mfa_challenge表
+ * MFA 挑战实体
+ * 基于 DDL: mfa_challenge 表
  *
  * @author HKT IoT Team
  */
@@ -43,6 +43,18 @@ public class MfaChallenge extends Entity<Long> {
     @Column(name = "verification_method", length = 50)
     private String verificationMethod;
 
+    @Column(name = "client_id", length = 100)
+    private String clientId;
+
+    @Column(name = "user_agent", length = 500)
+    private String userAgent;
+
+    @Column(name = "device_type", length = 50)
+    private String deviceType;
+
+    @Column(name = "device_id", length = 100)
+    private String deviceId;
+
     @Column(name = "status", nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
     private ChallengeStatus status;
@@ -73,7 +85,7 @@ public class MfaChallenge extends Entity<Long> {
     }
 
     /**
-     * 工厂方法：创建MFA挑战
+     * 工厂方法：创建 MFA 挑战（简化版）
      */
     public static MfaChallenge create(
             Long userId,
@@ -96,6 +108,47 @@ public class MfaChallenge extends Entity<Long> {
         challenge.maxAttempts = 3;
         challenge.createdAt = LocalDateTime.now();
         return challenge;
+    }
+
+    /**
+     * 工厂方法：创建 MFA 挑战（完整参数）
+     */
+    public static MfaChallenge create(
+            Long userId,
+            Long tenantId,
+            String challengeCode,
+            MfaConfig.MfaType mfaType,
+            String code,
+            String verificationMethod,
+            String clientId,
+            String userAgent,
+            String deviceType,
+            String deviceId,
+            LocalDateTime expiresAt) {
+        MfaChallenge challenge = new MfaChallenge();
+        challenge.userId = userId;
+        challenge.tenantId = tenantId;
+        challenge.challengeCode = challengeCode;
+        challenge.mfaType = mfaType;
+        challenge.code = code;
+        challenge.verificationMethod = verificationMethod;
+        challenge.clientId = clientId;
+        challenge.userAgent = userAgent;
+        challenge.deviceType = deviceType;
+        challenge.deviceId = deviceId;
+        challenge.status = ChallengeStatus.PENDING;
+        challenge.expiresAt = expiresAt;
+        challenge.attemptCount = 0;
+        challenge.maxAttempts = 3;
+        challenge.createdAt = LocalDateTime.now();
+        return challenge;
+    }
+
+    /**
+     * 验证 MFA 码（兼容方法）
+     */
+    public boolean verifyCode(String inputCode) {
+        return verify(inputCode);
     }
 
     /**
@@ -123,6 +176,24 @@ public class MfaChallenge extends Entity<Long> {
             this.fail();
         }
         return false;
+    }
+
+    /**
+     * 记录失败尝试
+     */
+    public void recordFailedAttempt() {
+        this.attemptCount = this.attemptCount != null ? this.attemptCount + 1 : 1;
+        if (this.attemptCount >= this.maxAttempts) {
+            this.fail();
+        }
+    }
+
+    /**
+     * 标记为已验证
+     */
+    public void markAsVerified() {
+        this.status = ChallengeStatus.VERIFIED;
+        this.verifiedAt = LocalDateTime.now();
     }
 
     /**

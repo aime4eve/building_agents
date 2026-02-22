@@ -1,5 +1,6 @@
 package com.hkt.iot.notification.infrastructure.messaging;
 
+import com.hkt.iot.notification.application.service.AlarmNotificationService;
 import com.hkt.iot.notification.application.service.NotificationApplicationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Component;
 public class NotificationMessageListener {
 
     private final NotificationApplicationService notificationApplicationService;
+    private final AlarmNotificationService alarmNotificationService;
 
     /**
      * 监听通知发送消息
@@ -52,7 +54,7 @@ public class NotificationMessageListener {
     public void handleAlarmTriggered(String event) {
         try {
             log.info("收到告警触发事件: {}", event);
-            // TODO: 解析事件并创建通知请求
+            alarmNotificationService.handleAlarmTriggered(event);
         } catch (Exception e) {
             log.error("处理告警触发事件失败", e);
         }

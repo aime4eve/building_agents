@@ -2,6 +2,8 @@ package com.hkt.iot.user.domain.model;
 
 import com.hkt.iot.domain.model.AggregateRoot;
 import com.hkt.iot.user.domain.event.TenantCreatedEvent;
+import com.hkt.iot.user.domain.event.TenantSuspendedEvent;
+import com.hkt.iot.user.domain.event.TenantTerminatedEvent;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -12,7 +14,7 @@ import java.util.*;
 
 /**
  * 租户聚合根
- * 基于DDL: tenant表
+ * 基于 DDL: tenant 表
  *
  * @author HKT IoT Team
  */
@@ -206,6 +208,13 @@ public class Tenant extends AggregateRoot<Long> {
         }
         this.tenantStatus = TenantStatus.SUSPENDED;
         this.updatedAt = LocalDateTime.now();
+        
+        // 发布租户暂停事件
+        registerDomainEvent(new TenantSuspendedEvent(
+                this.id,
+                this.tenantCode,
+                LocalDateTime.now()
+        ));
     }
 
     /**
@@ -217,6 +226,13 @@ public class Tenant extends AggregateRoot<Long> {
         }
         this.tenantStatus = TenantStatus.TERMINATED;
         this.updatedAt = LocalDateTime.now();
+        
+        // 发布租户终止事件
+        registerDomainEvent(new TenantTerminatedEvent(
+                this.id,
+                this.tenantCode,
+                LocalDateTime.now()
+        ));
     }
 
     /**

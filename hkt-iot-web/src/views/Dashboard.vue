@@ -303,47 +303,191 @@ onUnmounted(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="less">
+@primary-color: #1890ff;
+@success-color: #52c41a;
+@warning-color: #faad14;
+@error-color: #ff4d4f;
+@border-radius: 16px;
+@shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+@shadow-md: 0 4px 16px rgba(0, 0, 0, 0.1);
+@shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+@transition-base: all 0.3s ease;
+
 .dashboard-container {
   padding: 24px;
+  min-height: calc(100vh - 64px);
+  background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
 }
 
+// 统计卡片行
 .stats-row {
-  margin-bottom: 16px;
+  margin-bottom: 24px;
+
+  :deep(.ant-col) {
+    transition: transform 0.3s ease;
+
+    &:hover {
+      transform: translateY(-4px);
+    }
+  }
 }
 
 .stat-card {
-  border-radius: 8px;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+  border-radius: @border-radius;
+  box-shadow: @shadow-sm;
+  transition: @transition-base;
+  overflow: hidden;
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, @primary-color 0%, @success-color 100%);
+  }
+
+  &:hover {
+    box-shadow: @shadow-lg;
+    transform: translateY(-4px);
+  }
+
+  :deep(.ant-statistic) {
+    .ant-statistic-title {
+      font-size: 14px;
+      color: #8c8c8c;
+      margin-bottom: 12px;
+      font-weight: 500;
+    }
+
+    .ant-statistic-content {
+      font-size: 28px;
+      font-weight: 700;
+      color: #262626;
+
+      .ant-statistic-content-prefix {
+        font-size: 20px;
+        margin-right: 8px;
+      }
+
+      .ant-statistic-content-suffix {
+        font-size: 14px;
+        margin-left: 4px;
+        color: #8c8c8c;
+      }
+    }
+  }
+
+  .stat-footer {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid #f0f0f0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .text-success {
+      color: @success-color;
+      font-weight: 600;
+    }
+
+    .text-error {
+      color: @error-color;
+      font-weight: 600;
+    }
+
+    .stat-label {
+      color: #bfbfbf;
+      font-size: 12px;
+      margin-left: auto;
+    }
+  }
 }
 
-.stat-footer {
-  margin-top: 8px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.stat-label {
-  color: #8c8c8c;
-  font-size: 12px;
-}
-
+// 图表行
 .charts-row {
-  margin-bottom: 16px;
+  margin-bottom: 24px;
+
+  :deep(.ant-col) {
+    transition: transform 0.3s ease;
+  }
 }
 
 .chart-card {
-  border-radius: 8px;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+  border-radius: @border-radius;
+  box-shadow: @shadow-sm;
+  transition: @transition-base;
   height: 100%;
+
+  &:hover {
+    box-shadow: @shadow-md;
+  }
+
+  :deep(.ant-card-head) {
+    background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
+    border-bottom: 1px solid #e8e8e8;
+    padding: 16px 20px;
+    font-weight: 600;
+    font-size: 16px;
+    border-radius: @border-radius @border-radius 0 0 !important;
+  }
+
+  :deep(.ant-card-body) {
+    padding: 20px;
+  }
 }
 
-.chart-card :deep(.ant-card-head) {
-  border-bottom: 1px solid #f0f0f0;
+// 告警列表
+:deep(.ant-list) {
+  .ant-list-item {
+    padding: 12px 0;
+    border-color: #f0f0f0 !important;
+    transition: @transition-base;
+
+    &:hover {
+      background: #fafafa;
+      padding-left: 12px;
+      padding-right: 12px;
+      margin: 0 -12px;
+      border-radius: 8px;
+    }
+
+    .ant-list-item-meta {
+      align-items: center;
+
+      .ant-list-item-meta-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 500;
+      }
+
+      .ant-list-item-meta-description {
+        color: #bfbfbf;
+        font-size: 12px;
+        margin-top: 4px;
+      }
+    }
+  }
 }
 
-.chart-card :deep(.ant-card-body) {
-  padding-top: 16px;
+// 响应式
+@media (max-width: 768px) {
+  .dashboard-container {
+    padding: 16px;
+  }
+
+  .stats-row {
+    :deep(.ant-col) {
+      margin-bottom: 16px;
+    }
+  }
+
+  .chart-card {
+    margin-bottom: 16px;
+  }
 }
 </style>

@@ -13,16 +13,6 @@
     <name>HKT IoT Platform Parent</name>
     <description>华宽通智能体平台 - 父POM，统一管理依赖版本</description>
 
-    <modules>
-        <module>../hkt-iot-common</module>
-        <module>../hkt-iot-domain</module>
-        <module>../hkt-iot-user-service</module>
-        <module>../hkt-iot-device-service</module>
-        <module>../hkt-iot-space-service</module>
-        <module>../hkt-iot-rule-service</module>
-        <module>../hkt-iot-gateway</module>
-    </modules>
-
     <properties>
         <!-- Java版本 -->
         <java.version>17</java.version>
@@ -210,6 +200,11 @@
             <dependency>
                 <groupId>com.hkt.iot</groupId>
                 <artifactId>hkt-iot-domain</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.hkt.iot</groupId>
+                <artifactId>hkt-iot-notification-service-client</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>

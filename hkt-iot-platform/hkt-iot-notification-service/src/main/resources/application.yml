@@ -87,10 +87,9 @@ mybatis-plus:
 
 # 通知服务配置
 notification:
-  # 最大重试次数
   max-retry: 3
-  # 默认优先级
   default-priority: NORMAL
+  retention-days: 30
 
   # 邮件配置
   email:

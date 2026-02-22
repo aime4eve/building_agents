@@ -5,6 +5,7 @@ import com.hkt.iot.device.domain.model.Device;
 import com.hkt.iot.device.domain.model.DeviceCommand;
 import com.hkt.iot.device.domain.repository.DeviceCommandRepository;
 import com.hkt.iot.device.domain.repository.DeviceRepository;
+import com.hkt.iot.device.domain.service.DeviceControlValidationService;
 import com.hkt.iot.device.application.event.DeviceEventPublisher;
 import com.hkt.iot.device.infrastructure.mqtt.MqttCommandSender;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,7 @@ public class DeviceCommandService {
 
     private final DeviceCommandRepository commandRepository;
     private final DeviceRepository deviceRepository;
+    private final DeviceControlValidationService validationService;
     private final DeviceEventPublisher eventPublisher;
     private final MqttCommandSender mqttCommandSender;
 
@@ -47,19 +49,26 @@ public class DeviceCommandService {
             Integer priority,
             Long createdBy) {
 
-        log.info("发送设备命令: deviceId={}, commandCode={}, commandType={}",
+        log.info("发送设备命令：deviceId={}, commandCode={}, commandType={}",
                 deviceId, commandCode, commandType);
 
-        // 查询设备
-        Device device = deviceRepository.findById(deviceId)
-                .orElseThrow(() -> new IllegalArgumentException("设备不存在: " + deviceId));
+        // 1. 设备控制权限校验
+        var validationResult = validationService.validateControlPermission(
+                tenantId, deviceId, createdBy, "device:control");
+        if (!validationResult.isValid()) {
+            throw new IllegalStateException(validationResult.getErrorMessage());
+        }
 
-        // 检查设备是否在线
+        // 2. 查询设备
+        Device device = deviceRepository.findById(deviceId)
+                .orElseThrow(() -> new IllegalArgumentException("设备不存在：" + deviceId));
+
+        // 3. 检查设备是否在线
         if (!device.getOnlineStatus()) {
             throw new IllegalStateException("设备离线，无法发送命令");
         }
 
-        // 检查设备是否被锁定
+        // 4. 检查设备是否被锁定
         if (device.getIsLocked()) {
             throw new IllegalStateException("设备已被锁定，无法发送命令");
         }
@@ -74,8 +83,8 @@ public class DeviceCommandService {
                 commandType,
                 inputParams,
                 priority,
-                30,  // 默认超时30秒
-                3,   // 默认重试3次
+                30,  // 默认超时 30 秒
+                3,   // 默认重试 3 次
                 createdBy
         );
 
@@ -87,10 +96,10 @@ public class DeviceCommandService {
             mqttCommandSender.sendCommand(device.getDeviceSn(), command);
             savedCommand.send();
             commandRepository.save(savedCommand);
-            log.info("设备命令发送成功: commandId={}, requestId={}",
+            log.info("设备命令发送成功：commandId={}, requestId={}",
                     savedCommand.getId(), savedCommand.getRequestId());
         } catch (Exception e) {
-            log.error("设备命令发送失败: commandId={}, error={}",
+            log.error("设备命令发送失败：commandId={}, error={}",
                     savedCommand.getId(), e.getMessage(), e);
             savedCommand.fail("SEND_FAILED", e.getMessage());
             commandRepository.save(savedCommand);
@@ -110,19 +119,19 @@ public class DeviceCommandService {
             String resultCode,
             String resultMessage) {
 
-        log.info("处理命令回执: requestId={}, status={}, resultCode={}",
+        log.info("处理命令回执：requestId={}, status={}, resultCode={}",
                 requestId, status, resultCode);
 
         // 查询命令
         DeviceCommand command = commandRepository.findByRequestId(requestId)
-                .orElseThrow(() -> new IllegalArgumentException("命令不存在: " + requestId));
+                .orElseThrow(() -> new IllegalArgumentException("命令不存在：" + requestId));
 
         // 更新命令状态
         switch (status) {
             case SUCCESS -> command.success(outputParams, resultCode, resultMessage);
             case FAILED -> command.fail(resultCode, resultMessage);
             case TIMEOUT -> command.timeout();
-            default -> log.warn("未知的命令状态: {}", status);
+            default -> log.warn("未知的命令状态：{}", status);
         }
 
         commandRepository.save(command);
@@ -142,7 +151,7 @@ public class DeviceCommandService {
         );
         eventPublisher.publishEvent(event);
 
-        log.info("命令回执处理完成: requestId={}, finalStatus={}",
+        log.info("命令回执处理完成：requestId={}, finalStatus={}",
                 requestId, command.getCommandStatus());
     }
 
@@ -151,15 +160,15 @@ public class DeviceCommandService {
      */
     @Transactional(rollbackFor = Exception.class)
     public void cancelCommand(Long commandId) {
-        log.info("取消命令: commandId={}", commandId);
+        log.info("取消命令：commandId={}", commandId);
 
         DeviceCommand command = commandRepository.findById(commandId)
-                .orElseThrow(() -> new IllegalArgumentException("命令不存在: " + commandId));
+                .orElseThrow(() -> new IllegalArgumentException("命令不存在：" + commandId));
 
         command.cancel();
         commandRepository.save(command);
 
-        log.info("命令取消成功: commandId={}", commandId);
+        log.info("命令取消成功：commandId={}", commandId);
     }
 
     /**
@@ -167,13 +176,13 @@ public class DeviceCommandService {
      */
     @Transactional(rollbackFor = Exception.class)
     public DeviceCommand retryCommand(Long commandId) {
-        log.info("重试命令: commandId={}", commandId);
+        log.info("重试命令：commandId={}", commandId);
 
         DeviceCommand command = commandRepository.findById(commandId)
-                .orElseThrow(() -> new IllegalArgumentException("命令不存在: " + commandId));
+                .orElseThrow(() -> new IllegalArgumentException("命令不存在：" + commandId));
 
         if (!command.canRetry()) {
-            throw new IllegalStateException("命令不可重试: " + commandId);
+            throw new IllegalStateException("命令不可重试：" + commandId);
         }
 
         command.retry();
@@ -181,15 +190,15 @@ public class DeviceCommandService {
 
         // 重新发送命令
         Device device = deviceRepository.findById(command.getDeviceId())
-                .orElseThrow(() -> new IllegalArgumentException("设备不存在: " + command.getDeviceId()));
+                .orElseThrow(() -> new IllegalArgumentException("设备不存在：" + command.getDeviceId()));
 
         try {
             mqttCommandSender.sendCommand(device.getDeviceSn(), command);
             command.send();
             commandRepository.save(command);
-            log.info("命令重试发送成功: commandId={}", commandId);
+            log.info("命令重试发送成功：commandId={}", commandId);
         } catch (Exception e) {
-            log.error("命令重试发送失败: commandId={}, error={}",
+            log.error("命令重试发送失败：commandId={}, error={}",
                     commandId, e.getMessage(), e);
             command.fail("RETRY_FAILED", e.getMessage());
             commandRepository.save(command);
@@ -204,11 +213,11 @@ public class DeviceCommandService {
     @Transactional(readOnly = true)
     public DeviceCommand getCommandById(Long commandId) {
         return commandRepository.findById(commandId)
-                .orElseThrow(() -> new IllegalArgumentException("命令不存在: " + commandId));
+                .orElseThrow(() -> new IllegalArgumentException("命令不存在：" + commandId));
     }
 
     /**
-     * 根据请求ID查询命令
+     * 根据请求 ID 查询命令
      */
     @Transactional(readOnly = true)
     public Optional<DeviceCommand> getCommandByRequestId(String requestId) {
@@ -258,11 +267,11 @@ public class DeviceCommandService {
                     eventPublisher.publishEvent(event);
                 }
             } catch (Exception e) {
-                log.error("处理超时命令失败: commandId={}, error={}",
+                log.error("处理超时命令失败：commandId={}, error={}",
                         command.getId(), e.getMessage(), e);
             }
         }
 
-        log.debug("超时命令处理完成，处理数量: {}", timeoutCommands.size());
+        log.debug("超时命令处理完成，处理数量：{}", timeoutCommands.size());
     }
 }
