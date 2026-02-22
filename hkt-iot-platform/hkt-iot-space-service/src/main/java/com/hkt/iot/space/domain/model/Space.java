@@ -1,6 +1,9 @@
 package com.hkt.iot.space.domain.model;
 
 import com.hkt.iot.domain.model.AggregateRoot;
+import com.hkt.iot.space.domain.event.SpaceDeletedEvent;
+import com.hkt.iot.space.domain.event.SpaceStatusChangedEvent;
+import com.hkt.iot.space.domain.event.SpaceUpdatedEvent;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -229,6 +232,7 @@ public class Space extends AggregateRoot<Long> {
         this.latitude = latitude;
         this.altitude = altitude;
         this.updatedAt = LocalDateTime.now();
+        registerUpdateEvent();
     }
 
     /**
@@ -238,6 +242,81 @@ public class Space extends AggregateRoot<Long> {
         this.boundary = boundary;
         this.area = area;
         this.updatedAt = LocalDateTime.now();
+        registerUpdateEvent();
+    }
+
+    /**
+     * 设置楼层号
+     */
+    public void setFloorNumber(Integer floorNumber) {
+        this.floorNumber = floorNumber;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * 设置房间号
+     */
+    public void setRoomNumber(String roomNumber) {
+        this.roomNumber = roomNumber;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * 设置容量
+     */
+    public void setCapacity(Integer capacity) {
+        this.capacity = capacity;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * 设置空间名称
+     */
+    public void setSpaceName(String spaceName) {
+        this.spaceName = spaceName;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * 设置更新人ID
+     */
+    public void setUpdatedBy(Long updatedBy) {
+        this.updatedBy = updatedBy;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * 设置父空间ID
+     */
+    public void setParentSpaceId(Long parentSpaceId) {
+        this.parentSpaceId = parentSpaceId;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * 更新空间基本信息
+     */
+    public void updateBasicInfo(String spaceName, Integer capacity) {
+        this.spaceName = spaceName;
+        this.capacity = capacity;
+        this.updatedAt = LocalDateTime.now();
+        registerUpdateEvent();
+    }
+
+    /**
+     * 注册空间更新事件
+     */
+    private void registerUpdateEvent() {
+        SpaceUpdatedEvent event = new SpaceUpdatedEvent(
+                this.id,
+                this.spaceCode,
+                this.spaceName,
+                this.tenantId,
+                this.spaceType,
+                this.updatedAt,
+                this.updatedBy
+        );
+        addDomainEvent(event);
     }
 
     /**
@@ -252,24 +331,46 @@ public class Space extends AggregateRoot<Long> {
      * 停用空间
      */
     public void deactivate() {
+        SpaceStatus previousStatus = this.spaceStatus;
         this.spaceStatus = SpaceStatus.INACTIVE;
         this.updatedAt = LocalDateTime.now();
+        registerStatusChangedEvent(previousStatus, this.spaceStatus, "空间停用");
     }
 
     /**
      * 激活空间
      */
     public void activate() {
+        SpaceStatus previousStatus = this.spaceStatus;
         this.spaceStatus = SpaceStatus.ACTIVE;
         this.updatedAt = LocalDateTime.now();
+        registerStatusChangedEvent(previousStatus, this.spaceStatus, "空间激活");
     }
 
     /**
      * 进入维护状态
      */
     public void enterMaintenance() {
+        SpaceStatus previousStatus = this.spaceStatus;
         this.spaceStatus = SpaceStatus.MAINTENANCE;
         this.updatedAt = LocalDateTime.now();
+        registerStatusChangedEvent(previousStatus, this.spaceStatus, "进入维护");
+    }
+
+    /**
+     * 注册状态变更事件
+     */
+    private void registerStatusChangedEvent(SpaceStatus previousStatus, SpaceStatus currentStatus, String reason) {
+        SpaceStatusChangedEvent event = new SpaceStatusChangedEvent(
+                this.id,
+                this.spaceCode,
+                this.tenantId,
+                previousStatus,
+                currentStatus,
+                reason,
+                this.updatedAt
+        );
+        addDomainEvent(event);
     }
 
     /**
@@ -279,6 +380,36 @@ public class Space extends AggregateRoot<Long> {
         this.deleted = true;
         this.deletedAt = LocalDateTime.now();
         this.deletedBy = deletedBy;
+        this.updatedAt = LocalDateTime.now();
+
+        // 注册删除事件
+        SpaceDeletedEvent event = new SpaceDeletedEvent(
+                this.id,
+                this.spaceCode,
+                this.spaceName,
+                this.tenantId,
+                this.spaceType,
+                this.deletedAt,
+                deletedBy
+        );
+        addDomainEvent(event);
+    }
+
+    /**
+     * 绑定资源到空间
+     */
+    public void bindResource(Long resourceId, String resourceCode, String reason, Long boundBy) {
+        // 资源绑定逻辑由 SpaceResource 实体处理
+        // 这里仅注册事件
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * 从空间解绑资源
+     */
+    public void unbindResource(Long resourceId, String resourceCode, String reason, Long unboundBy) {
+        // 资源解绑逻辑由 SpaceResource 实体处理
+        // 这里仅注册事件
         this.updatedAt = LocalDateTime.now();
     }
 }

@@ -1,6 +1,10 @@
 package com.hkt.iot.space.domain.model;
 
 import com.hkt.iot.domain.model.AggregateRoot;
+import com.hkt.iot.space.domain.event.LogicalSpaceGroupCreatedEvent;
+import com.hkt.iot.space.domain.event.LogicalSpaceGroupUpdatedEvent;
+import com.hkt.iot.space.domain.event.SpaceAddedToGroupEvent;
+import com.hkt.iot.space.domain.event.SpaceRemovedFromGroupEvent;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -123,6 +127,19 @@ public class LogicalSpaceGroup extends AggregateRoot<Long> {
         group.createdBy = createdBy;
         group.updatedBy = createdBy;
         group.version = 0L;
+
+        // 注册创建事件
+        LogicalSpaceGroupCreatedEvent event = new LogicalSpaceGroupCreatedEvent(
+                null, // ID 尚未分配
+                groupCode,
+                groupName,
+                tenantId,
+                groupType,
+                group.createdAt,
+                createdBy
+        );
+        group.addDomainEvent(event);
+
         return group;
     }
 
@@ -135,6 +152,7 @@ public class LogicalSpaceGroup extends AggregateRoot<Long> {
         this.groupColor = groupColor;
         this.groupIcon = groupIcon;
         this.updatedAt = LocalDateTime.now();
+        registerUpdateEvent();
     }
 
     /**
@@ -143,6 +161,23 @@ public class LogicalSpaceGroup extends AggregateRoot<Long> {
     public void updateGroupRule(Map<String, Object> groupRule) {
         this.groupRule = groupRule;
         this.updatedAt = LocalDateTime.now();
+        registerUpdateEvent();
+    }
+
+    /**
+     * 注册更新事件
+     */
+    private void registerUpdateEvent() {
+        LogicalSpaceGroupUpdatedEvent event = new LogicalSpaceGroupUpdatedEvent(
+                this.id,
+                this.groupCode,
+                this.groupName,
+                this.tenantId,
+                this.groupType,
+                this.updatedAt,
+                this.updatedBy
+        );
+        addDomainEvent(event);
     }
 
     /**
@@ -170,6 +205,30 @@ public class LogicalSpaceGroup extends AggregateRoot<Long> {
     }
 
     /**
+     * 设置分组颜色
+     */
+    public void setGroupColor(String groupColor) {
+        this.groupColor = groupColor;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * 设置分组图标
+     */
+    public void setGroupIcon(String groupIcon) {
+        this.groupIcon = groupIcon;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * 设置更新人ID
+     */
+    public void setUpdatedBy(Long updatedBy) {
+        this.updatedBy = updatedBy;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /**
      * 软删除
      */
     public void softDelete(Long deletedBy) {
@@ -177,5 +236,57 @@ public class LogicalSpaceGroup extends AggregateRoot<Long> {
         this.deletedAt = LocalDateTime.now();
         this.deletedBy = deletedBy;
         this.updatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * 添加空间到分组
+     */
+    public void addSpace(
+            Long spaceId,
+            String spaceCode,
+            String spaceName,
+            Space.SpaceType spaceType,
+            Long addedBy) {
+        // 注册空间添加到分组事件
+        SpaceAddedToGroupEvent event = new SpaceAddedToGroupEvent(
+                this.id,
+                this.groupCode,
+                this.groupName,
+                this.tenantId,
+                spaceId,
+                spaceCode,
+                spaceName,
+                spaceType,
+                LocalDateTime.now(),
+                addedBy
+        );
+        addDomainEvent(event);
+    }
+
+    /**
+     * 从分组移除空间
+     */
+    public void removeSpace(
+            Long spaceId,
+            String spaceCode,
+            String spaceName,
+            Space.SpaceType spaceType,
+            String removeReason,
+            Long removedBy) {
+        // 注册空间从分组移除事件
+        SpaceRemovedFromGroupEvent event = new SpaceRemovedFromGroupEvent(
+                this.id,
+                this.groupCode,
+                this.groupName,
+                this.tenantId,
+                spaceId,
+                spaceCode,
+                spaceName,
+                spaceType,
+                removeReason,
+                LocalDateTime.now(),
+                removedBy
+        );
+        addDomainEvent(event);
     }
 }

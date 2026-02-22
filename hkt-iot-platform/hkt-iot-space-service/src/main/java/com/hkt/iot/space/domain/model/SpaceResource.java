@@ -157,6 +157,14 @@ public class SpaceResource extends Entity<Long> {
     }
 
     /**
+     * 设置资源编码
+     */
+    public void setResourceCode(String resourceCode) {
+        this.resourceCode = resourceCode;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /**
      * 设置生效时间
      */
     public void setDateRange(LocalDateTime startDate, LocalDateTime endDate) {

@@ -8,7 +8,10 @@ const Login = () => import('@/views/Login.vue')
 const Dashboard = () => import('@/views/Dashboard.vue')
 const DeviceList = () => import('@/views/device/DeviceList.vue')
 const DeviceDetail = () => import('@/views/device/DeviceDetail.vue')
+const SpaceList = () => import('@/views/space/index.vue')
 const SpaceManagement = () => import('@/views/space/SpaceManagement.vue')
+const SpaceDetail = () => import('@/views/space/detail.vue')
+const SpaceForm = () => import('@/views/space/form.vue')
 const RuleManagement = () => import('@/views/rule/RuleManagement.vue')
 const ScenarioManagement = () => import('@/views/scenario/ScenarioManagement.vue')
 const ScheduleManagement = () => import('@/views/schedule/ScheduleManagement.vue')
@@ -89,10 +92,49 @@ const routes: RouteRecordRaw[] = [
       {
         path: '/space',
         name: 'Space',
-        component: SpaceManagement,
+        redirect: '/spaces',
         meta: {
           title: '空间管理',
           icon: 'ApartmentOutlined',
+        },
+      },
+      {
+        path: '/spaces',
+        name: 'SpaceList',
+        component: SpaceList,
+        meta: {
+          title: '空间管理',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: '/spaces/create',
+        name: 'SpaceCreate',
+        component: SpaceForm,
+        meta: {
+          title: '创建空间',
+          requiresAuth: true,
+          hidden: true,
+        },
+      },
+      {
+        path: '/spaces/:id',
+        name: 'SpaceDetail',
+        component: SpaceDetail,
+        meta: {
+          title: '空间详情',
+          requiresAuth: true,
+          hidden: true,
+        },
+      },
+      {
+        path: '/spaces/:id/edit',
+        name: 'SpaceEdit',
+        component: SpaceForm,
+        meta: {
+          title: '编辑空间',
+          requiresAuth: true,
+          hidden: true,
         },
       },
       {

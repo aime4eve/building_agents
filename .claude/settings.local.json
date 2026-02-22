@@ -19,7 +19,9 @@
       "Bash(D:/ai-agentic/hkt-iot-platform/hkt-iot-workflow-service/src/main/java/com/hkt/iot/workflow/delegate/ServiceCallDelegate.java:*)",
       "Bash(D:/ai-agentic/hkt-iot-platform/hkt-iot-workflow-service/src/main/java/com/hkt/iot/workflow/service/ProcessStartService.java:*)",
       "Bash(dir \"D:\\\\ai-agentic\")",
-      "Bash(npx vue-tsc:*)"
+      "Bash(npx vue-tsc:*)",
+      "Bash(mvn compile:*)",
+      "Bash(git add:*)"
     ]
   }
 }
