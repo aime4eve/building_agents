@@ -1,0 +1,98 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: hkt-iot-gateway
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        metadata:
+          version: 1.0.0
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        file-extension: yml
+        refresh-enabled: true
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        # 用户服务路由
+        - id: user-service
+          uri: lb://hkt-iot-user-service
+          predicates:
+            - Path=/api/user/**
+          filters:
+            - StripPrefix=2
+        # 设备服务路由
+        - id: device-service
+          uri: lb://hkt-iot-device-service
+          predicates:
+            - Path=/api/device/**
+          filters:
+            - StripPrefix=2
+        # 空间服务路由
+        - id: space-service
+          uri: lb://hkt-iot-space-service
+          predicates:
+            - Path=/api/space/**
+          filters:
+            - StripPrefix=2
+        # 规则引擎服务路由
+        - id: rule-service
+          uri: lb://hkt-iot-rule-service
+          predicates:
+            - Path=/api/rule/**
+          filters:
+            - StripPrefix=2
+        # Knife4j文档路由聚合
+        - id: knife4j-aggregation
+          uri: lb://hkt-iot-gateway
+          predicates:
+            - Path=/doc/**
+          filters:
+            - RewritePath=/doc/(?<segment>.*), /$\{segment}
+      # 全局CORS配置
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowed-origins: "*"
+            allowed-methods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowed-headers: "*"
+            allow-credentials: true
+            max-age: 3600
+
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+  production: false
+
+logging:
+  level:
+    root: INFO
+    com.hkt.iot: DEBUG
+    org.springframework.cloud.gateway: DEBUG
+  pattern:
+    console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n'
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,gateway
+  metrics:
+    tags:
+      application: ${spring.application.name}

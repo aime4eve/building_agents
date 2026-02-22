@@ -1,0 +1,93 @@
+# =============================================================================
+# Prometheus 配置文件 - 本地开发环境
+# =============================================================================
+
+# 全局配置
+global:
+  scrape_interval: 15s # 抓取间隔
+  evaluation_interval: 15s # 规则评估间隔
+  external_labels:
+    cluster: 'huakuantong-local'
+    environment: 'development'
+
+# 告警管理器配置
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+# 规则文件配置
+rule_files:
+  - "rules/*.yml"
+
+# 抓取配置
+scrape_configs:
+  # Prometheus自身监控
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+  # Spring Boot应用监控（通过Actuator）
+  - job_name: 'spring-boot-apps'
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['host.docker.internal:8080', 'host.docker.internal:8081', 'host.docker.internal:8082']
+        labels:
+          application: 'huakuantong-services'
+
+  # MySQL监控（需要mysql_exporter）
+  - job_name: 'mysql'
+    static_configs:
+      - targets: ['mysql-exporter:9104']
+        labels:
+          service: 'mysql'
+
+  # Redis监控（需要redis_exporter）
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'redis'
+
+  # RabbitMQ监控
+  - job_name: 'rabbitmq'
+    metrics_path: '/api/metrics'
+    static_configs:
+      - targets: ['rabbitmq:15692']
+        labels:
+          service: 'rabbitmq'
+
+  # EMQX监控
+  - job_name: 'emqx'
+    metrics_path: '/api/v5/prometheus/stats'
+    basic_auth:
+      username: 'admin'
+      password: 'admin123456'
+    static_configs:
+      - targets: ['emqx:18083']
+        labels:
+          service: 'emqx'
+
+  # Elasticsearch监控（需要elasticsearch_exporter）
+  - job_name: 'elasticsearch'
+    static_configs:
+      - targets: ['elasticsearch-exporter:9114']
+        labels:
+          service: 'elasticsearch'
+
+  # Node Exporter（主机监控）
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'node'
+
+  # cAdvisor（容器监控）
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          service: 'cadvisor'

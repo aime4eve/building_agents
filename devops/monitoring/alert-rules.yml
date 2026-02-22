@@ -1,0 +1,227 @@
+# =============================================================================
+# Prometheus 告警规则定义
+# =============================================================================
+
+groups:
+  # ---------------------------------------------------------------------------
+  # Spring Boot 应用告警规则
+  # ---------------------------------------------------------------------------
+  - name: spring_boot_alerts
+    interval: 30s
+    rules:
+      # 应用实例下线告警
+      - alert: ApplicationInstanceDown
+        expr: up{job=~"spring-boot.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "应用实例下线"
+          description: "{{ $labels.instance }} 应用实例已下线超过1分钟"
+
+      # 高错误率告警
+      - alert: HighErrorRate
+        expr: |
+          (
+            rate(http_server_requests_seconds_count{status=~"5.."}[5m])
+            /
+            rate(http_server_requests_seconds_count[5m])
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "API错误率过高"
+          description: "{{ $labels.application }} 错误率超过5%，当前值: {{ $value | humanizePercentage }}"
+
+      # 高响应时间告警
+      - alert: HighResponseTime
+        expr: |
+          histogram_quantile(0.95,
+            rate(http_server_requests_seconds_bucket[5m])
+          ) > 1
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "API响应时间过长"
+          description: "{{ $labels.application }} P95响应时间超过1秒，当前值: {{ $value }}s"
+
+      # JVM堆内存使用率告警
+      - alert: HighHeapMemoryUsage
+        expr: |
+          (jvm_memory_used_bytes{area="heap"}
+          /
+          jvm_memory_max_bytes{area="heap"}) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "JVM堆内存使用率过高"
+          description: "{{ $labels.application }} 堆内存使用率超过85%，当前值: {{ $value | humanizePercentage }}"
+
+      # GC时间过长告警
+      - alert: LongGcPause
+        expr: |
+          rate(jvm_gc_pause_seconds_sum[5m])
+          /
+          rate(jvm_gc_pause_seconds_count[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "GC暂停时间过长"
+          description: "{{ $labels.application }} 平均GC暂停时间超过100ms"
+
+  # ---------------------------------------------------------------------------
+  # 系统资源告警规则
+  # ---------------------------------------------------------------------------
+  - name: system_alerts
+    interval: 30s
+    rules:
+      # CPU使用率告警
+      - alert: HighCpuUsage
+        expr: |
+          (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) by (instance))
+          > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          team: ops
+        annotations:
+          summary: "CPU使用率过高"
+          description: "{{ $labels.instance }} CPU使用率超过80%，当前值: {{ $value | humanizePercentage }}"
+
+      # 磁盘空间告警
+      - alert: LowDiskSpace
+        expr: |
+          (node_filesystem_avail_bytes{mountpoint="/"}
+          /
+          node_filesystem_size_bytes{mountpoint="/"}) < 0.1
+        for: 5m
+        labels:
+          severity: critical
+          team: ops
+        annotations:
+          summary: "磁盘空间不足"
+          description: "{{ $labels.instance }} 磁盘空间剩余不足10%，当前值: {{ $value | humanizePercentage }}"
+
+      # 内存使用率告警
+      - alert: HighMemoryUsage
+        expr: |
+          (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
+          > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          team: ops
+        annotations:
+          summary: "内存使用率过高"
+          description: "{{ $labels.instance }} 内存使用率超过90%，当前值: {{ $value | humanizePercentage }}"
+
+  # ---------------------------------------------------------------------------
+  # 中间件告警规则
+  # ---------------------------------------------------------------------------
+  - name: middleware_alerts
+    interval: 30s
+    rules:
+      # Redis连接数告警
+      - alert: HighRedisConnections
+        expr: redis_connected_clients / redis_config_maxclients > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          team: ops
+        annotations:
+          summary: "Redis连接数过高"
+          description: "Redis连接数使用率超过80%，当前值: {{ $value | humanizePercentage }}"
+
+      # Redis内存使用率告警
+      - alert: HighRedisMemoryUsage
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          team: ops
+        annotations:
+          summary: "Redis内存使用率过高"
+          description: "Redis内存使用率超过85%，当前值: {{ $value | humanizePercentage }}"
+
+      # RabbitMQ队列积压告警
+      - alert: RabbitMQQueueBacklog
+        expr: rabbitmq_queue_messages > 10000
+        for: 10m
+        labels:
+          severity: warning
+          team: ops
+        annotations:
+          summary: "RabbitMQ队列积压"
+          description: "队列 {{ $labels.queue }} 消息积压超过10000条，当前值: {{ $value }}"
+
+      # MySQL连接数告警
+      - alert: HighMysqlConnections
+        expr: |
+          mysql_global_status_threads_connected
+          /
+          mysql_global_variables_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          team: ops
+        annotations:
+          summary: "MySQL连接数过高"
+          description: "MySQL连接数使用率超过80%，当前值: {{ $value | humanizePercentage }}"
+
+  # ---------------------------------------------------------------------------
+  # 业务告警规则
+  # ---------------------------------------------------------------------------
+  - name: business_alerts
+    interval: 30s
+    rules:
+      # 设备离线告警
+      - alert: DeviceOffline
+        expr: |
+          count(device_online == 0) by (tenant_id)
+          > 100
+        for: 5m
+        labels:
+          severity: warning
+          team: iot
+        annotations:
+          summary: "大量设备离线"
+          description: "租户 {{ $labels.tenant_id }} 有超过100个设备离线"
+
+      # API请求量突降告警
+      - alert: LowRequestRate
+        expr: |
+          rate(http_server_requests_seconds_count[5m])
+          <
+          rate(http_server_requests_seconds_count[offset:1h])[5m:] * 0.5
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "API请求量突降"
+          description: "{{ $labels.application }} 请求量相比1小时前下降超过50%"
+
+      # 订单创建失败率告警
+      - alert: HighOrderFailureRate
+        expr: |
+          (
+            rate(order_creation_failed_total[5m])
+            /
+            rate(order_creation_total[5m])
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "订单创建失败率过高"
+          description: "订单创建失败率超过10%，当前值: {{ $value | humanizePercentage }}"

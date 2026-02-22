@@ -1,0 +1,217 @@
+version: '3.8'
+
+services:
+  # API网关
+  gateway:
+    build:
+      context: ../../
+      dockerfile: hkt-iot-gateway/Dockerfile
+    container_name: hkt-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
+      - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=nacos:8848
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - SPRING_DATA_REDIS_PASSWORD=redis123
+    depends_on:
+      - nacos
+      - redis
+    networks:
+      - hkt-network
+    restart: unless-stopped
+
+  # 用户与租户服务
+  user-service:
+    build:
+      context: ../../
+      dockerfile: hkt-iot-user-service/Dockerfile
+    container_name: hkt-user-service
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
+      - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=nacos:8848
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/hkt_iot_user?useUnicode=true&characterEncoding=utf8
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - SPRING_DATA_REDIS_PASSWORD=redis123
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - SPRING_RABBITMQ_PORT=5672
+      - SPRING_RABBITMQ_USERNAME=admin
+      - SPRING_RABBITMQ_PASSWORD=admin123
+    depends_on:
+      - nacos
+      - mysql
+      - redis
+      - rabbitmq
+    networks:
+      - hkt-network
+    restart: unless-stopped
+
+  # 设备管理服务
+  device-service:
+    build:
+      context: ../../
+      dockerfile: hkt-iot-device-service/Dockerfile
+    container_name: hkt-device-service
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
+      - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=nacos:8848
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/hkt_iot_device?useUnicode=true&characterEncoding=utf8
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=my-super-secret-token
+      - INFLUXDB_ORG=hkt-iot
+      - INFLUXDB_BUCKET=telemetry
+      - MQTT_BROKER_URL=tcp://emqx:1883
+      - MQTT_CLIENT_ID=device-service-${HOSTNAME}
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    depends_on:
+      - nacos
+      - mysql
+      - influxdb
+      - emqx
+    networks:
+      - hkt-network
+    restart: unless-stopped
+
+  # 空间管理服务
+  space-service:
+    build:
+      context: ../../
+      dockerfile: hkt-iot-space-service/Dockerfile
+    container_name: hkt-space-service
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
+      - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=nacos:8848
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/hkt_iot_space?useUnicode=true&characterEncoding=utf8
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - SPRING_DATA_REDIS_PASSWORD=redis123
+    depends_on:
+      - nacos
+      - mysql
+      - redis
+    networks:
+      - hkt-network
+    restart: unless-stopped
+
+  # 规则引擎服务
+  rule-service:
+    build:
+      context: ../../
+      dockerfile: hkt-iot-rule-service/Dockerfile
+    container_name: hkt-rule-service
+    ports:
+      - "8084:8084"
+    environment:
+      - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
+      - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=nacos:8848
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/hkt_iot_rule?useUnicode=true&characterEncoding=utf8
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root
+      - DROOLS_RULES_PATH=/opt/drools/rules
+    depends_on:
+      - nacos
+      - mysql
+    volumes:
+      - ./rules:/opt/drools/rules
+    networks:
+      - hkt-network
+    restart: unless-stopped
+
+  # 场景联动服务
+  scene-service:
+    build:
+      context: ../../
+      dockerfile: hkt-iot-scene-service/Dockerfile
+    container_name: hkt-scene-service
+    ports:
+      - "8085:8085"
+    environment:
+      - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
+      - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=nacos:8848
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/hkt_iot_scene?useUnicode=true&characterEncoding=utf8
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - SPRING_RABBITMQ_PORT=5672
+      - SPRING_RABBITMQ_USERNAME=admin
+      - SPRING_RABBITMQ_PASSWORD=admin123
+    depends_on:
+      - nacos
+      - mysql
+      - rabbitmq
+    networks:
+      - hkt-network
+    restart: unless-stopped
+
+  # 智能应用服务
+  smart-apps-service:
+    build:
+      context: ../../
+      dockerfile: hkt-iot-smart-apps-service/Dockerfile
+    container_name: hkt-smart-apps-service
+    ports:
+      - "8085:8085"
+    environment:
+      - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
+      - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=nacos:8848
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/hkt_iot_smart_apps?useUnicode=true&characterEncoding=utf8
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root
+    depends_on:
+      - nacos
+      - mysql
+    networks:
+      - hkt-network
+    restart: unless-stopped
+
+  # 通知中心服务
+  notification-service:
+    build:
+      context: ../../
+      dockerfile: hkt-iot-notification-service/Dockerfile
+    container_name: hkt-notification-service
+    ports:
+      - "8086:8086"
+    environment:
+      - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
+      - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=nacos:8848
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/hkt_iot_notification?useUnicode=true&characterEncoding=utf8
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - SPRING_DATA_REDIS_PASSWORD=redis123
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - SPRING_RABBITMQ_PORT=5672
+      - SPRING_RABBITMQ_USERNAME=admin
+      - SPRING_RABBITMQ_PASSWORD=admin123
+      - SPRING_MAIL_HOST=smtp.example.com
+      - SPRING_MAIL_PORT=587
+      - JPUSH_APP_KEY=${JPUSH_APP_KEY}
+      - JPUSH_MASTER_SECRET=${JPUSH_MASTER_SECRET}
+    depends_on:
+      - nacos
+      - mysql
+      - redis
+      - rabbitmq
+    networks:
+      - hkt-network
+    restart: unless-stopped
+
+networks:
+  hkt-network:
+    external: true

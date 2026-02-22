@@ -1,0 +1,416 @@
+// =============================================================================
+// 华宽通智能体系统 - Jenkins 流水线配置
+// =============================================================================
+// 版本: 1.0.0
+// 说明: 声明式Jenkins流水线，支持多环境部署
+// =============================================================================
+
+pipeline {
+    agent any
+
+    // 环境变量定义
+    environment {
+        // Docker镜像配置
+        DOCKER_REGISTRY = 'harbor.huakuantong.com'
+        IMAGE_NAME = 'huakuantong/ai-agent'
+        IMAGE_TAG = "${env.BUILD_NUMBER}"
+
+        // Maven配置
+        MAVEN_HOME = tool 'Maven-3.9.5'
+        MAVEN_OPTS = '-Dmaven.repo.local=$WORKSPACE/.m2/repository'
+
+        // Java配置
+        JAVA_HOME = tool 'JDK-17'
+
+        // Kubernetes配置
+        KUBECONFIG_DEV = credentials('dev-kubeconfig')
+        KUBECONFIG_TEST = credentials('test-kubeconfig')
+        KUBECONFIG_PROD = credentials('prod-kubeconfig')
+    }
+
+    // 构建参数
+    parameters {
+        choice(
+            name: 'DEPLOY_ENV',
+            choices: ['dev', 'test', 'prod'],
+            description: '选择部署环境'
+        )
+        booleanParam(
+            name: 'SKIP_TESTS',
+            defaultValue: false,
+            description: '是否跳过测试'
+        )
+        booleanParam(
+            name: 'SKIP_SECURITY_SCAN',
+            defaultValue: false,
+            description: '是否跳过安全扫描'
+        )
+    }
+
+    // 构建触发器
+    triggers {
+        // GitLab触发
+        gitlab(
+            triggerOnPush: true,
+            triggerOnMergeRequest: true,
+            branchFilterType: 'NameBasedFilter',
+            includeBranches: 'main,develop'
+        )
+        // 定时构建 - 每天凌晨2点
+        pollSCM('H 2 * * *')
+    }
+
+    // 构建选项
+    options {
+        // 保留最近30次构建记录
+        buildDiscarder(logRotator(numToKeepStr: '30'))
+        // 禁止并发构建
+        disableConcurrentBuilds()
+        // 构建超时时间（1小时）
+        timeout(time: 1, unit: 'HOURS')
+        // 时间戳
+        timestamps()
+    }
+
+    stages {
+        // ---------------------------------------------------------------------------
+        // 阶段1: 环境准备
+        // ---------------------------------------------------------------------------
+        stage('Preparation') {
+            steps {
+                script {
+                    echo "========================================="
+                    echo "构建信息"
+                    echo "========================================="
+                    echo "项目名称: ${env.JOB_NAME}"
+                    echo "构建编号: ${env.BUILD_NUMBER}"
+                    echo "构建分支: ${env.GIT_BRANCH}"
+                    echo "提交ID: ${env.GIT_COMMIT}"
+                    echo "构建者: ${env.BUILD_USER}"
+                    echo "部署环境: ${params.DEPLOY_ENV}"
+                    echo "========================================="
+
+                    // 清理工作空间
+                    cleanWs()
+                }
+            }
+        }
+
+        // ---------------------------------------------------------------------------
+        // 阶段2: 代码检出
+        // ---------------------------------------------------------------------------
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        // ---------------------------------------------------------------------------
+        // 阶段3: 代码编译
+        // ---------------------------------------------------------------------------
+        stage('Compile') {
+            steps {
+                script {
+                    echo "开始编译Java代码..."
+                    sh """
+                        ${env.MAVEN_HOME}/bin/mvn clean compile \
+                            -DskipTests \
+                            -Dmaven.test.failure.ignore=false
+                    """
+                }
+            }
+        }
+
+        // ---------------------------------------------------------------------------
+        // 阶段4: 代码测试
+        // ---------------------------------------------------------------------------
+        stage('Test') {
+            when {
+                expression { !params.SKIP_TESTS }
+            }
+            steps {
+                script {
+                    echo "运行单元测试..."
+                    sh """
+                        ${env.MAVEN_HOME}/bin/mvn test \
+                            jacoco:report
+                    """
+
+                    // 发布测试报告
+                    junit testResults: 'target/surefire-reports/TEST-*.xml'
+
+                    // 发布覆盖率报告
+                    jacoco(
+                        execPattern: 'target/jacoco.exec',
+                        classPattern: 'target/classes',
+                        sourcePattern: 'src/main/java',
+                        exclusionPattern: '**/*Test*.class'
+                    )
+                }
+            }
+        }
+
+        // ---------------------------------------------------------------------------
+        // 阶段5: 代码质量检查
+        // ---------------------------------------------------------------------------
+        stage('Code Quality') {
+            steps {
+                script {
+                    echo "运行代码质量检查（SonarQube）..."
+                    withSonarQubeEnv('SonarQube-Server') {
+                        sh """
+                            ${env.MAVEN_HOME}/bin/mvn sonar:sonar \
+                                -Dsonar.projectKey=${env.JOB_NAME} \
+                                -Dsonar.host.url=${SONAR_HOST} \
+                                -Dsonar.login=${SONAR_TOKEN}
+                        """
+                    }
+
+                    // 等待质量门禁结果
+                    timeout(time: 5, unit: 'MINUTES') {
+                        waitForQualityGate abortPipeline: true
+                    }
+                }
+            }
+        }
+
+        // ---------------------------------------------------------------------------
+        // 阶段6: 安全扫描
+        // ---------------------------------------------------------------------------
+        stage('Security Scan') {
+            when {
+                expression { !params.SKIP_SECURITY_SCAN }
+            }
+            parallel {
+                stage('Dependency Scan') {
+                    steps {
+                        script {
+                            echo "扫描依赖漏洞（OWASP Dependency-Check）..."
+                            sh """
+                                ${env.MAVEN_HOME}/bin/mvn org.owasp:dependency-check-maven:check
+                            """
+                            publishHTML(target: [
+                                reportDir: 'target',
+                                reportFiles: 'dependency-check-report.html',
+                                reportName: 'OWASP Dependency Check Report'
+                            ])
+                        }
+                    }
+                }
+                stage('SAST Scan') {
+                    steps {
+                        script {
+                            echo "静态应用安全测试..."
+                            // 集成SonarQube安全规则
+                        }
+                    }
+                }
+            }
+        }
+
+        // ---------------------------------------------------------------------------
+        // 阶段7: 构建Docker镜像
+        // ---------------------------------------------------------------------------
+        stage('Build Image') {
+            steps {
+                script {
+                    echo "构建Docker镜像..."
+
+                    // 构建后端服务镜像
+                    sh """
+                        ${env.MAVEN_HOME}/bin/mvn package -DskipTests
+                        docker build -t ${DOCKER_REGISTRY}/${IMAGE_NAME}/backend:${IMAGE_TAG} -f docker/backend/Dockerfile .
+                        docker tag ${DOCKER_REGISTRY}/${IMAGE_NAME}/backend:${IMAGE_TAG} ${DOCKER_REGISTRY}/${IMAGE_NAME}/backend:latest
+                    """
+
+                    // 构建前端应用镜像
+                    dir('frontend') {
+                        sh """
+                            npm ci
+                            npm run build
+                        """
+                    }
+                    sh """
+                        docker build -t ${DOCKER_REGISTRY}/${IMAGE_NAME}/frontend:${IMAGE_TAG} -f docker/frontend/Dockerfile .
+                        docker tag ${DOCKER_REGISTRY}/${IMAGE_NAME}/frontend:${IMAGE_TAG} ${DOCKER_REGISTRY}/${IMAGE_NAME}/frontend:latest
+                    """
+                }
+            }
+        }
+
+        // ---------------------------------------------------------------------------
+        // 阶段8: 推送镜像
+        // ---------------------------------------------------------------------------
+        stage('Push Image') {
+            steps {
+                script {
+                    echo "推送Docker镜像到Harbor..."
+
+                    withCredentials([usernamePassword(
+                        credentialsId: 'harbor-credentials',
+                        usernameVariable: 'HARBOR_USER',
+                        passwordVariable: 'HARBOR_PASSWORD'
+                    )]) {
+                        sh """
+                            echo \$HARBOR_PASSWORD | docker login ${DOCKER_REGISTRY} -u \$HARBOR_USER --password-stdin
+                            docker push ${DOCKER_REGISTRY}/${IMAGE_NAME}/backend:${IMAGE_TAG}
+                            docker push ${DOCKER_REGISTRY}/${IMAGE_NAME}/backend:latest
+                            docker push ${DOCKER_REGISTRY}/${IMAGE_NAME}/frontend:${IMAGE_TAG}
+                            docker push ${DOCKER_REGISTRY}/${IMAGE_NAME}/frontend:latest
+                        """
+                    }
+                }
+            }
+        }
+
+        // ---------------------------------------------------------------------------
+        // 阶段9: 部署
+        // ---------------------------------------------------------------------------
+        stage('Deploy') {
+            when {
+                expression { params.DEPLOY_ENV != null }
+            }
+            steps {
+                script {
+                    def env = params.DEPLOY_ENV
+
+                    echo "部署到${env}环境..."
+
+                    switch(env) {
+                        case 'dev':
+                            deployToDev()
+                            break
+                        case 'test':
+                            deployToTest()
+                            break
+                        case 'prod':
+                            deployToProd()
+                            break
+                    }
+                }
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // 构建后处理
+    // ---------------------------------------------------------------------------
+    post {
+        success {
+            script {
+                echo "构建成功！"
+                // 发送企业微信通知
+                wechatNotification(true, "构建 #${env.BUILD_NUMBER} 成功")
+            }
+        }
+        failure {
+            script {
+                echo "构建失败！"
+                // 发送企业微信通知
+                wechatNotification(false, "构建 #${env.BUILD_NUMBER} 失败")
+            }
+        }
+        always {
+            script {
+                // 清理Docker镜像
+                sh """
+                    docker rmi ${DOCKER_REGISTRY}/${IMAGE_NAME}/backend:${IMAGE_TAG} || true
+                    docker rmi ${DOCKER_REGISTRY}/${IMAGE_NAME}/frontend:${IMAGE_TAG} || true
+                """
+                // 清理工作空间
+                cleanWs()
+            }
+        }
+    }
+}
+
+// =============================================================================
+// 自定义函数
+// =============================================================================
+
+// 部署到开发环境
+def deployToDev() {
+    echo "部署到开发环境..."
+    withKubeConfig([credentialsId: 'dev-kubeconfig']) {
+        sh """
+            kubectl set image deployment/backend \
+                backend=${DOCKER_REGISTRY}/${IMAGE_NAME}/backend:${IMAGE_TAG} \
+                -n huakuantong-dev
+            kubectl set image deployment/frontend \
+                frontend=${DOCKER_REGISTRY}/${IMAGE_NAME}/frontend:${IMAGE_TAG} \
+                -n huakuantong-dev
+            kubectl rollout status deployment/backend -n huakuantong-dev --timeout=5m
+            kubectl rollout status deployment/frontend -n huakuantong-dev --timeout=5m
+        """
+    }
+}
+
+// 部署到测试环境
+def deployToTest() {
+    echo "部署到测试环境..."
+    input message: '确认部署到测试环境？', ok: '确认'
+    withKubeConfig([credentialsId: 'test-kubeconfig']) {
+        sh """
+            kubectl set image deployment/backend \
+                backend=${DOCKER_REGISTRY}/${IMAGE_NAME}/backend:${IMAGE_TAG} \
+                -n huakuantong-test
+            kubectl set image deployment/frontend \
+                frontend=${DOCKER_REGISTRY}/${IMAGE_NAME}/frontend:${IMAGE_TAG} \
+                -n huakuantong-test
+            kubectl rollout status deployment/backend -n huakuantong-test --timeout=5m
+            kubectl rollout status deployment/frontend -n huakuantong-test --timeout=5m
+        """
+    }
+}
+
+// 部署到生产环境
+def deployToProd() {
+    echo "部署到生产环境..."
+    input message: '确认部署到生产环境？', ok: '确认部署'
+    withKubeConfig([credentialsId: 'prod-kubeconfig']) {
+        // 灰度发布
+        sh """
+            # 更新部署策略
+            kubectl patch deployment backend -n huakuantong-prod \
+                -p '{"spec":{"strategy":{"rollingUpdate":{"maxSurge":"10%","maxUnavailable":"0"}}}}'
+
+            # 更新镜像
+            kubectl set image deployment/backend \
+                backend=${DOCKER_REGISTRY}/${IMAGE_NAME}/backend:${IMAGE_TAG} \
+                -n huakuantong-prod
+            kubectl set image deployment/frontend \
+                frontend=${DOCKER_REGISTRY}/${IMAGE_NAME}/frontend:${IMAGE_TAG} \
+                -n huakuantong-prod
+
+            # 等待滚动更新完成
+            kubectl rollout status deployment/backend -n huakuantong-prod --timeout=10m
+            kubectl rollout status deployment/frontend -n huakuantong-prod --timeout=10m
+        """
+    }
+}
+
+// 企业微信通知
+def wechatNotification(boolean success, String message) {
+    script {
+        def corpId = 'your-corp-id'
+        def agentId = 'your-agent-id'
+        def secret = credentials('wechat-secret')
+
+        withCredentials([string(credentialsId: 'wechat-webhook', variable: 'WEBHOOK_URL')]) {
+            def color = success ? '#00FF00' : '#FF0000'
+            def content = """
+                {
+                    "msgtype": "markdown",
+                    "markdown": {
+                        "content": "## 华宽通智能体系统构建通知<font color='${color}'>${success ? '成功' : '失败'}</font>\n\n> ${message}\n\n- 项目: ${env.JOB_NAME}\n- 分支: ${env.GIT_BRANCH}\n- 提交: ${env.GIT_COMMIT[0..7]}\n- 构建者: ${env.BUILD_USER ?: 'System'}\n- [查看详情](${env.BUILD_URL})"
+                    }
+                }
+            """
+            sh """
+                curl -X POST '${WEBHOOK_URL}' \
+                    -H 'Content-Type: application/json' \
+                    -d '${content}'
+            """
+        }
+    }
+}

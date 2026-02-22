@@ -1,0 +1,201 @@
+# =============================================================================
+# Camunda + Workflow Engine 服务 Docker Compose 配置
+# =============================================================================
+# 版本: 1.0.0
+# 说明: 根据工作流引擎集成方案设计配置
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 数据库 - Camunda专用
+  # ---------------------------------------------------------------------------
+  postgres-camunda:
+    image: postgres:15-alpine
+    container_name: camunda-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: camunda
+      POSTGRES_USER: camunda
+      POSTGRES_PASSWORD: camunda123456
+      TZ: Asia/Shanghai
+    ports:
+      - "5433:5432"
+    volumes:
+      - camunda-postgres-data:/var/lib/postgresql/data
+      - ./camunda/postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U camunda"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - camunda-net
+
+  # ---------------------------------------------------------------------------
+  # Camunda Platform 7
+  # ---------------------------------------------------------------------------
+  camunda:
+    image: camunda/camunda-bpm-platform:7.20.0
+    container_name: camunda-platform
+    restart: unless-stopped
+    depends_on:
+      postgres-camunda:
+        condition: service_healthy
+    environment:
+      # 数据库配置
+      DB_DRIVER: org.postgresql.Driver
+      DB_URL: jdbc:postgresql://postgres-camunda:5432/camunda
+      DB_USERNAME: camunda
+      DB_PASSWORD: camunda123456
+
+      # 管理员用户
+      CAMUNDA_BPM_ADMIN_USER_ID: admin
+      CAMUNDA_BPM_ADMIN_USER_PASSWORD: admin123456
+      CAMUNDA_BPM_ADMIN_USER_FIRST_NAME: Admin
+      CAMUNDA_BPM_ADMIN_USER_LAST_NAME: User
+      CAMUNDA_BPM_ADMIN_USER_EMAIL: admin@huakuantong.com
+
+      # REST API CORS
+      CORS_ALLOW_CREDENTIALS: "true"
+      CORS_ALLOWED_ORIGINS: "http://localhost:8080,http://localhost:3000"
+
+      # 时区
+      TZ: Asia/Shanghai
+
+      # 日志级别
+      LOGLEVEL: INFO
+
+      # Webapps配置
+      CAMUNDA_BPM_WEBAPP_TYPE: both
+      CAMUNDA_BPM_REST_ENABLED: "true"
+
+      # 异步执行器配置
+      JOB_EXECUTION_ACQUISITION_PRIORITY: "10"
+      JOB_EXECUTION_ACQUISITION_PRIORITY_EXCEPTION_THRESHOLD: "3"
+      JOB_EXECUTION_ENABLED: "true"
+      JOB_EXECUTION_ACQUISITION_STRATEGY: "SEQUENTIAL_OR_FAILOVER_SEQUENTIAL"
+    ports:
+      - "8080:8080"  # Camunda Web Apps
+      - "9443:9443"  # HTTPS
+    volumes:
+      - ./camunda/deployment-scripts:/camunda/deployment-scripts:ro
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/camunda"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - camunda-net
+
+  # ---------------------------------------------------------------------------
+  # Camunda Operate - 现代化Web界面
+  # ---------------------------------------------------------------------------
+  # 注意：Camunda Operate 需要Camunda 8，这里使用Camunda 7
+  # 如需使用Operate，需要升级到Camunda 8并使用Zeebe
+  #
+  # camunda-operate:
+  #   image: camunda/operate:8.3.0
+  #   container_name: camunda-operate
+  #   environment:
+  #     CAMUNDA_OPERATE_ELasticsearch_URL: http://elasticsearch:9200
+  #     CAMUNDA_OPERATE_ZEEBE_GATEWAY_URL: http://zeebe:26500
+  #     CAMUNDA_OPERATE_SECURITY_ENABLED: "false"
+  #   ports:
+  #     - "8081:8080"
+  #   depends_on:
+  #     - elasticsearch
+  #     - zeebe
+
+  # ---------------------------------------------------------------------------
+  # Camunda Modeler (独立桌面应用，不包含在Docker中)
+  # ---------------------------------------------------------------------------
+  # 下载地址: https://camunda.com/download/modeler/
+  # 本地运行后访问: http://localhost:26101
+
+  # ---------------------------------------------------------------------------
+  # Workflow Engine Service (Spring Boot应用)
+  # ---------------------------------------------------------------------------
+  workflow-engine-service:
+    build:
+      context: ../..
+      dockerfile: devops/camunda/Dockerfile.workflow-engine
+    container_name: workflow-engine-service
+    restart: unless-stopped
+    depends_on:
+      camunda:
+        condition: service_healthy
+      postgres-camunda:
+        condition: service_healthy
+    environment:
+      # Spring配置
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_APPLICATION_NAME: workflow-engine-service
+
+      # Camunda配置
+      CAMUNDA_BPM_URL: http://camunda:8080/camunda
+      CAMUNDA_BPM_CLIENT_ID: workflow-engine
+      CAMUNDA_BPM_CLIENT_SECRET: workflow-engine-secret
+
+      # 数据库配置
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-camunda:5432/camunda
+      SPRING_DATASOURCE_USERNAME: camunda
+      SPRING_DATASOURCE_PASSWORD: camunda123456
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+
+      # JPA配置
+      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+
+      # RabbitMQ配置
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: admin
+      SPRING_RABBITMQ_PASSWORD: admin123456
+
+      # 服务注册与发现
+      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+      SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR: nacos:8848
+
+      # 监控配置
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,prometheus
+      MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED: "true"
+
+      # 日志配置
+      LOGGING_LEVEL_ROOT: INFO
+      LOGGING_LEVEL_COM_HUAKUANTONG: DEBUG
+
+      TZ: Asia/Shanghai
+    ports:
+      - "8085:8085"  # 服务端口
+      - "9885:9885"  # 管理端口
+    volumes:
+      - workflow-engine-logs:/app/logs
+    networks:
+      - camunda-net
+      - huakuantong-net
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8085/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+# ---------------------------------------------------------------------------
+# 数据卷定义
+# ---------------------------------------------------------------------------
+volumes:
+  camunda-postgres-data:
+  workflow-engine-logs:
+
+# ---------------------------------------------------------------------------
+# 网络定义
+# ---------------------------------------------------------------------------
+networks:
+  camunda-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.23.0.0/16
+  huakuantong-net:
+    external: true

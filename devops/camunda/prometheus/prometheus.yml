@@ -1,0 +1,68 @@
+# =============================================================================
+# Prometheus 配置 - Camunda监控
+# =============================================================================
+
+# 全局配置
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'huakuantong-camunda'
+    environment: 'development'
+
+# 告警管理器
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+# 规则文件
+rule_files:
+  - "rules/*_rules.yml"
+
+# 抓取配置
+scrape_configs:
+  # ---------------------------------------------------------------------------
+  # Camunda Platform 7 监控
+  # ---------------------------------------------------------------------------
+  # 注意：Camunda 7 需要通过Camunda BPM Spin或micrometer暴露Prometheus指标
+  # 以下配置假设已安装相关插件
+  - job_name: 'camunda'
+    metrics_path: '/camunda/metrics'
+    static_configs:
+      - targets: ['camunda:8080']
+        labels:
+          service: 'camunda-platform'
+
+  # ---------------------------------------------------------------------------
+  # Workflow Engine Service 监控（Spring Boot Actuator）
+  # ---------------------------------------------------------------------------
+  - job_name: 'workflow-engine-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['workflow-engine-service:8085']
+        labels:
+          service: 'workflow-engine'
+          application: 'workflow-engine-service'
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Camunda数据库监控（需要postgres_exporter）
+  # ---------------------------------------------------------------------------
+  - job_name: 'postgres-camunda'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'postgres-camunda'
+
+  # ---------------------------------------------------------------------------
+  # JVM指标（通过Spring Boot Actuator）
+  # ---------------------------------------------------------------------------
+  - job_name: 'workflow-engine-jvm'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['workflow-engine-service:8085']
+    relabel_configs:
+      - source_labels: [__name__]
+        regex: 'jvm_(.*)'
+        target_label: __name__
+        replacement: 'workflow_engine_$1'

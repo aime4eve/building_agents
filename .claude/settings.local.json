@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(npm install)",
+      "Bash(npm install:*)",
+      "Bash(npm run build)",
+      "Bash(mvn test:*)",
+      "Bash(find:*)",
+      "Bash(javac:*)",
+      "Bash(D:/ai-agentic/hkt-iot-platform/hkt-iot-user-service/src/main/java/com/hkt/iot/user/infrastructure/persistence/UserRepositoryImpl.java:*)",
+      "Bash(D:/ai-agentic/hkt-iot-platform/hkt-iot-user-service/src/main/java/com/hkt/iot/user/infrastructure/persistence/TenantRepositoryImpl.java:*)",
+      "Bash(D:/ai-agentic/hkt-iot-platform/hkt-iot-device-service/src/main/java/com/hkt/iot/device/infrastructure/persistence/DeviceRepositoryImpl.java:*)",
+      "Bash(D:/ai-agentic/hkt-iot-platform/hkt-iot-space-service/src/main/java/com/hkt/iot/space/infrastructure/persistence/SpaceRepositoryImpl.java:*)",
+      "Bash(D:/ai-agentic/hkt-iot-platform/hkt-iot-rule-service/src/main/java/com/hkt/iot/rule/infrastructure/persistence/RuleRepositoryImpl.java:*)",
+      "Bash(wc:*)",
+      "Bash(D:/ai-agentic/hkt-iot-platform/hkt-iot-workflow-service/src/main/java/com/hkt/iot/workflow/delegate/RuleEngineDelegate.java:*)",
+      "Bash(D:/ai-agentic/hkt-iot-platform/hkt-iot-workflow-service/src/main/java/com/hkt/iot/workflow/delegate/AutoAssignDelegate.java:*)",
+      "Bash(D:/ai-agentic/hkt-iot-platform/hkt-iot-workflow-service/src/main/java/com/hkt/iot/workflow/delegate/ServiceCallDelegate.java:*)",
+      "Bash(D:/ai-agentic/hkt-iot-platform/hkt-iot-workflow-service/src/main/java/com/hkt/iot/workflow/service/ProcessStartService.java:*)",
+      "Bash(dir \"D:\\\\ai-agentic\")",
+      "Bash(npx vue-tsc:*)"
+    ]
+  }
+}

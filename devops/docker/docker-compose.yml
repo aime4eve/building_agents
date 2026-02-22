@@ -1,0 +1,297 @@
+# =============================================================================
+# 华宽通智能体系统 - 本地开发环境 Docker Compose 配置
+# =============================================================================
+# 版本: 1.0.0
+# 说明: 用于本地开发的基础设施服务编排
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ---------------------------------------------------------------------------
+  # MySQL 数据库 - 业务数据存储
+  # ---------------------------------------------------------------------------
+  mysql:
+    image: mysql:8.0
+    container_name: huakuantong-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root123456
+      MYSQL_DATABASE: huakuantong
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+      - --max_connections=1000
+      - --max_allowed_packet=256M
+    networks:
+      - huakuantong-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot123456"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Redis 缓存 - 缓存、会话、分布式锁
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7.2-alpine
+    container_name: huakuantong-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - huakuantong-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # RabbitMQ 消息队列 - 异步通信、事件驱动
+  # ---------------------------------------------------------------------------
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: huakuantong-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin123456
+      RABBITMQ_DEFAULT_VHOST: huakuantong
+    ports:
+      - "5672:5672"    # AMQP 协议端口
+      - "15672:15672"  # 管理界面端口
+      - "15692:15692"  # Prometheus 监控端口
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+      - ./docker/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    networks:
+      - huakuantong-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # EMQX MQTT Broker - 物联网设备接入
+  # ---------------------------------------------------------------------------
+  emqx:
+    image: emqx/emqx:5.5.0
+    container_name: huakuantong-emqx
+    restart: unless-stopped
+    environment:
+      EMQX_NAME: emqx
+      EMQX_HOST: 127.0.0.1
+      EMQX_DASHBOARD__DEFAULT_USERNAME: admin
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: admin123456
+      TZ: Asia/Shanghai
+    ports:
+      - "1883:1883"   # MQTT 协议端口
+      - "8883:8883"   # MQTT/SSL 端口
+      - "8083:8083"   # WebSocket 端口
+      - "8084:8084"   # WebSocket/SSL 端口
+      - "18083:18083" # Dashboard 管理界面端口
+    volumes:
+      - emqx-data:/opt/emqx/data
+      - emqx-log:/opt/emqx/log
+      - ./docker/emqx/emqx.conf:/opt/emqx/etc/emqx.conf:ro
+    networks:
+      - huakuantong-net
+    healthcheck:
+      test: ["CMD", "emqx", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Nacos - 服务注册发现与配置中心
+  # ---------------------------------------------------------------------------
+  nacos:
+    image: nacos/nacos-server:v2.3.0
+    container_name: huakuantong-nacos
+    restart: unless-stopped
+    environment:
+      MODE: standalone
+      SPRING_DATASOURCE_PLATFORM: mysql
+      MYSQL_SERVICE_HOST: mysql
+      MYSQL_SERVICE_PORT: 3306
+      MYSQL_SERVICE_DB_NAME: nacos_config
+      MYSQL_SERVICE_USER: root
+      MYSQL_SERVICE_PASSWORD: root123456
+      MYSQL_SERVICE_DB_PARAM: characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useSSL=false
+      NACOS_AUTH_ENABLE: true
+      NACOS_AUTH_TOKEN: SecretKey012345678901234567890123456789012345678901234567890123456789
+      NACOS_AUTH_IDENTITY_KEY: nacos
+      NACOS_AUTH_IDENTITY_VALUE: nacos
+      JVM_XMS: 512m
+      JVM_XMX: 512m
+    ports:
+      - "8848:8848"   # HTTP 协议端口
+      - "9848:9848"   # gRPC 端口
+    volumes:
+      - nacos-data:/home/nacos/data
+      - nacos-logs:/home/nacos/logs
+    networks:
+      - huakuantong-net
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8848/nacos/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Elasticsearch - 日志存储与全文检索
+  # ---------------------------------------------------------------------------
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
+    container_name: huakuantong-elasticsearch
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+      xpack.security.enabled: "false"
+      xpack.security.http.ssl.enabled: "false"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+      - ./docker/elasticsearch/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro
+    networks:
+      - huakuantong-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Kibana - 日志可视化
+  # ---------------------------------------------------------------------------
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.12.0
+    container_name: huakuantong-kibana
+    restart: unless-stopped
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      i18n.locale: zh-CN
+    ports:
+      - "5601:5601"
+    volumes:
+      - ./docker/kibana/kibana.yml:/usr/share/kibana/config/kibana.yml:ro
+    networks:
+      - huakuantong-net
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Prometheus - 监控指标采集
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.49.0
+    container_name: huakuantong-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - huakuantong-net
+
+  # ---------------------------------------------------------------------------
+  # Grafana - 监控数据可视化
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:10.3.0
+    container_name: huakuantong-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin123456
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+      TZ: Asia/Shanghai
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - huakuantong-net
+    depends_on:
+      - prometheus
+
+  # ---------------------------------------------------------------------------
+  # Zipkin - 分布式链路追踪
+  # ---------------------------------------------------------------------------
+  zipkin:
+    image: openzipkin/zipkin:3.0.5
+    container_name: huakuantong-zipkin
+    restart: unless-stopped
+    ports:
+      - "9411:9411"
+    networks:
+      - huakuantong-net
+
+# ---------------------------------------------------------------------------
+# 数据卷定义
+# ---------------------------------------------------------------------------
+volumes:
+  mysql-data:
+    driver: local
+  redis-data:
+    driver: local
+  rabbitmq-data:
+    driver: local
+  emqx-data:
+    driver: local
+  emqx-log:
+    driver: local
+  nacos-data:
+    driver: local
+  nacos-logs:
+    driver: local
+  es-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+# ---------------------------------------------------------------------------
+# 网络定义
+# ---------------------------------------------------------------------------
+networks:
+  huakuantong-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

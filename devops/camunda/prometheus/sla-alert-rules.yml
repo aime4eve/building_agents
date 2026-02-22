@@ -1,0 +1,268 @@
+# =============================================================================
+# Prometheus 告警规则 - Camunda SLA监控
+# =============================================================================
+# 版本: 1.0.0
+# 说明: 根据工作流引擎集成方案设计配置
+# =============================================================================
+
+groups:
+  # ---------------------------------------------------------------------------
+  # Camunda流程实例告警规则
+  # ---------------------------------------------------------------------------
+  - name: camunda_process_alerts
+    interval: 30s
+    rules:
+      # 流程实例执行时间过长
+      - alert: ProcessInstanceExecutionTimeTooLong
+        expr: |
+          (
+            time() - camunda_process_instance_start_time_seconds
+          ) > 3600
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "流程实例执行时间超过1小时"
+          description: "流程实例 {{ $labels.process_instance_id }} ({{ $labels.process_definition_key }}) 已执行超过1小时"
+
+      # 运行中流程实例过多
+      - alert: TooManyRunningProcessInstances
+        expr: camunda_process_instances_running_total > 1000
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "运行中流程实例过多"
+          description: "当前运行中的流程实例数量为 {{ $value }}，超过阈值1000"
+
+      # 流程实例失败率过高
+      - alert: HighProcessInstanceFailureRate
+        expr: |
+          (
+            rate(camunda_process_instances_failed_total[5m])
+            /
+            rate(camunda_process_instances_created_total[5m])
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "流程实例失败率过高"
+          description: "流程实例失败率超过5%，当前值: {{ $value | humanizePercentage }}"
+
+  # ---------------------------------------------------------------------------
+  # Camunda任务告警规则
+  # ---------------------------------------------------------------------------
+  - name: camunda_task_alerts
+    interval: 30s
+    rules:
+      # 待处理任务积压
+      - alert: TaskBacklogDetected
+        expr: camunda_tasks_pending_total > 500
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "任务积压过多"
+          description: "当前待处理任务数量为 {{ $value }}，超过阈值500"
+
+      # 任务超时
+      - alert: TaskOverdueDetected
+        expr: camunda_tasks_overdue_total > 50
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "超时任务过多"
+          description: "当前超时任务数量为 {{ $value }}，超过阈值50"
+
+      # 任务完成率过低
+      - alert: LowTaskCompletionRate
+        expr: |
+          (
+            rate(camunda_tasks_completed_total[1h])
+            /
+            rate(camunda_tasks_created_total[1h])
+          ) < 0.5
+        for: 30m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "任务完成率过低"
+          description: "任务完成率低于50%，当前值: {{ $value | humanizePercentage }}"
+
+  # ---------------------------------------------------------------------------
+  # SLA告警规则
+  # ---------------------------------------------------------------------------
+  - name: camunda_sla_alerts
+    interval: 30s
+    rules:
+      # SLA响应达成率过低
+      - alert: LowSLAResponseComplianceRate
+        expr: |
+          (
+            sum(rate(camunda_sla_response_compliant_total[1h]))
+            /
+            sum(rate(camunda_sla_response_total[1h]))
+          ) < 0.9
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "SLA响应达成率过低"
+          description: "SLA响应达成率低于90%，当前值: {{ $value | humanizePercentage }}"
+
+      # SLA解决达成率过低
+      - alert: LowSLAResolutionComplianceRate
+        expr: |
+          (
+            sum(rate(camunda_sla_resolution_compliant_total[1h]))
+            /
+            sum(rate(camunda_sla_resolution_total[1h]))
+          ) < 0.85
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "SLA解决达成率过低"
+          description: "SLA解决达成率低于85%，当前值: {{ $value | humanizePercentage }}"
+
+      # SLA超时数量过多
+      - alert: TooManySLABreached
+        expr: camunda_sla_breached_total > 100
+        for: 5m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "SLA超时数量过多"
+          description: "SLA超时数量为 {{ $value }}，超过阈值100"
+
+      # SLA预警数量过多
+      - alert: TooManySLAWarning
+        expr: camunda_sla_warning_total > 200
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "SLA预警数量过多"
+          description: "SLA预警数量为 {{ $value }}，超过阈值200"
+
+  # ---------------------------------------------------------------------------
+  # 特定流程SLA告警（按优先级）
+  # ---------------------------------------------------------------------------
+  - name: camunda_priority_sla_alerts
+    interval: 30s
+    rules:
+      # 高优先级工单SLA超时
+      - alert: HighPriorityWorkOrderSLABreached
+        expr: |
+          (
+            sum(rate(camunda_sla_breached_total{process_definition_key=~".*workorder", priority="HIGH"}[5m]))
+          ) > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "高优先级工单SLA超时"
+          description: "检测到高优先级工单SLA超时，请立即处理"
+
+      # 合同审批SLA风险
+      - alert: ContractApprovalSLAAtRisk
+        expr: |
+          (
+            sum(camunda_sla_warning_total{process_definition_key="contract-approval"})
+            /
+            sum(camunda_sla_total{process_definition_key="contract-approval"})
+          ) > 0.3
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "合同审批SLA风险"
+          description: "合同审批SLA预警比例超过30%，请关注"
+
+  # ---------------------------------------------------------------------------
+  # Camunda系统资源告警
+  # ---------------------------------------------------------------------------
+  - name: camunda_system_alerts
+    interval: 30s
+    rules:
+      # 数据库连接池耗尽
+      - alert: CamundaDatabasePoolExhausted
+        expr: camunda_database_connections_active / camunda_database_connections_max > 0.9
+        for: 5m
+        labels:
+          severity: critical
+          team: ops
+        annotations:
+          summary: "Camunda数据库连接池即将耗尽"
+          description: "数据库连接池使用率超过90%"
+
+      # 异步作业执行延迟
+      - alert: CamundaJobExecutionDelay
+        expr: camunda_job_execution_acquisition_delay_seconds > 60
+        for: 10m
+        labels:
+          severity: warning
+          team: ops
+        annotations:
+          summary: "Camunda作业执行延迟"
+          description: "作业执行延迟超过60秒，当前值: {{ $value }}s"
+
+      # 外部任务积压
+      - alert: CamundaExternalTaskBacklog
+        expr: camunda_external_tasks_locked_total > 1000
+        for: 10m
+        labels:
+          severity: warning
+          team: ops
+        annotations:
+          summary: "外部任务积压过多"
+          description: "外部任务积压数量为 {{ $value }}，超过阈值1000"
+
+  # ---------------------------------------------------------------------------
+  # 业务相关告警
+  # ---------------------------------------------------------------------------
+  - name: camunda_business_alerts
+    interval: 60s
+    rules:
+      # 租户流程实例异常增长
+      - alert: TenantProcessInstanceSpike
+        expr: |
+          (
+            sum by (tenant_id) (increase(camunda_process_instances_created_total[1h]))
+            -
+            avg by (tenant_id) (increase(camunda_process_instances_created_total[1h] offset 24h))
+          ) > avg by (tenant_id) (increase(camunda_process_instances_created_total[1h] offset 24h)) * 2
+        labels:
+          severity: info
+          team: backend
+        annotations:
+          summary: "租户流程实例数量异常增长"
+          description: "租户 {{ $labels.tenant_id }} 的流程实例创建量相比昨天增长超过100%"
+
+      # 特定流程零执行（可能表示业务异常）
+      - alert: ProcessNotExecutedRecently
+        expr: |
+          (
+            time() - max by (process_definition_key) (camunda_process_instance_last_created_timestamp)
+          ) > 86400
+        for: 10m
+        labels:
+          severity: warning
+          team: business
+        annotations:
+          summary: "流程超过24小时未执行"
+          description: "流程 {{ $labels.process_definition_key }} 已超过24小时没有新实例创建"

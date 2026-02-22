@@ -1,0 +1,129 @@
+# ============================================================================
+# 华宽通智能体系统 - Phase 1 数据库服务
+# 版本: V1.0
+# 创建日期: 2026-02-20
+# 说明: 包含MySQL 8.0和Redis 7.2，用于核心模块开发环境
+# ============================================================================
+
+version: '3.8'
+
+services:
+  # --------------------------------------------------------------------------
+  # MySQL 8.0 - 业务数据存储
+  # --------------------------------------------------------------------------
+  mysql:
+    image: mysql:8.0
+    container_name: hkt-mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root123456
+      MYSQL_DATABASE: hkt_iot
+      # 自动创建多个数据库
+      MYSQL_MULTIPLE_DATABASES: hkt_iot_device,hkt_iot_space,hkt_iot_user,hkt_iot_rule
+      # 时区设置
+      TZ: Asia/Shanghai
+    volumes:
+      # 数据持久化
+      - mysql-data:/var/lib/mysql
+      # 初始化脚本
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+      # MySQL配置
+      - ./mysql/conf/my.cnf:/etc/mysql/conf.d/my.cnf:ro
+      # 慢查询日志
+      - mysql-logs:/var/log/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot123456"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - hkt-network
+
+  # --------------------------------------------------------------------------
+  # Redis 7.2 - 缓存和会话
+  # --------------------------------------------------------------------------
+  redis:
+    image: redis:7.2-alpine
+    container_name: hkt-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      # 数据持久化
+      - redis-data:/data
+      # Redis配置
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - hkt-network
+
+  # --------------------------------------------------------------------------
+  # phpMyAdmin - MySQL管理界面（可选）
+  # --------------------------------------------------------------------------
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: hkt-phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: root123456
+      UPLOAD_LIMIT: 100M
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - hkt-network
+
+  # --------------------------------------------------------------------------
+  # Redis Commander - Redis管理界面（可选）
+  # --------------------------------------------------------------------------
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: hkt-redis-commander
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - hkt-network
+
+# --------------------------------------------------------------------------
+# 网络配置
+# --------------------------------------------------------------------------
+networks:
+  hkt-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# --------------------------------------------------------------------------
+# 数据卷配置
+# --------------------------------------------------------------------------
+volumes:
+  mysql-data:
+    driver: local
+  mysql-logs:
+    driver: local
+  redis-data:
+    driver: local

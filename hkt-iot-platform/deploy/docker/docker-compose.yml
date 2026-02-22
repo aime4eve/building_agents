@@ -1,0 +1,216 @@
+version: '3.8'
+
+services:
+  # Nacos注册中心与配置中心
+  nacos:
+    image: nacos/nacos-server:v2.2.3
+    container_name: hkt-nacos
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+    environment:
+      - MODE=standalone
+      - SPRING_DATASOURCE_PLATFORM=mysql
+      - MYSQL_SERVICE_HOST=mysql
+      - MYSQL_SERVICE_PORT=3306
+      - MYSQL_SERVICE_DB_NAME=nacos_config
+      - MYSQL_SERVICE_USER=root
+      - MYSQL_SERVICE_PASSWORD=root
+      - NACOS_AUTH_ENABLE=true
+      - NACOS_AUTH_TOKEN=SecretKey012345678901234567890123456789012345678901234567890123456789
+      - NACOS_AUTH_IDENTITY_KEY=serverIdentity
+      - NACOS_AUTH_IDENTITY_VALUE=security
+    volumes:
+      - nacos-logs:/home/nacos/logs
+    depends_on:
+      - mysql
+    networks:
+      - hkt-network
+    restart: unless-stopped
+
+  # MySQL数据库
+  mysql:
+    image: mysql:8.0
+    container_name: hkt-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - TZ=Asia/Shanghai
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./init-db:/docker-entrypoint-initdb.d
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+    networks:
+      - hkt-network
+    restart: unless-stopped
+
+  # Redis缓存
+  redis:
+    image: redis:7-alpine
+    container_name: hkt-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass redis123
+    volumes:
+      - redis-data:/data
+    networks:
+      - hkt-network
+    restart: unless-stopped
+
+  # RabbitMQ消息队列
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: hkt-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=admin123
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - hkt-network
+    restart: unless-stopped
+
+  # EMQX MQTT Broker
+  emqx:
+    image: emqx/emqx:5.4.0
+    container_name: hkt-emqx
+    ports:
+      - "1883:1883"      # MQTT
+      - "8883:8883"      # MQTT/SSL
+      - "8083:8083"      # WebSocket
+      - "18083:18083"    # Dashboard
+    environment:
+      - EMQX_NAME=emqx
+      - EMQX_HOST=127.0.0.1
+      - EMQX_DASHBOARD__DEFAULT_USERNAME=admin
+      - EMQX_DASHBOARD__DEFAULT_PASSWORD=public
+    volumes:
+      - emqx-data:/opt/emqx/data
+      - emqx-log:/opt/emqx/log
+    networks:
+      - hkt-network
+    restart: unless-stopped
+
+  # InfluxDB时序数据库
+  influxdb:
+    image: influxdb:2.7
+    container_name: hkt-influxdb
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=admin123
+      - DOCKER_INFLUXDB_INIT_ORG=hkt-iot
+      - DOCKER_INFLUXDB_INIT_BUCKET=telemetry
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=my-super-secret-token
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+      - influxdb-config:/etc/influxdb
+    networks:
+      - hkt-network
+    restart: unless-stopped
+
+  # Prometheus监控
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: hkt-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - hkt-network
+    restart: unless-stopped
+
+  # Grafana可视化
+  grafana:
+    image: grafana/grafana:latest
+    container_name: hkt-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_INSTALL_PLUGINS=grafana-clock-panel
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - hkt-network
+    restart: unless-stopped
+
+  # Elasticsearch
+  elasticsearch:
+    image: elasticsearch:8.11.0
+    container_name: hkt-elasticsearch
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      - xpack.security.enabled=false
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - hkt-network
+    restart: unless-stopped
+
+  # Logstash
+  logstash:
+    image: logstash:8.11.0
+    container_name: hkt-logstash
+    ports:
+      - "5044:5044"
+      - "5000:5000/tcp"
+      - "5000:5000/udp"
+      - "9600:9600"
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline
+    networks:
+      - hkt-network
+    depends_on:
+      - elasticsearch
+    restart: unless-stopped
+
+  # Kibana
+  kibana:
+    image: kibana:8.11.0
+    container_name: hkt-kibana
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    networks:
+      - hkt-network
+    depends_on:
+      - elasticsearch
+    restart: unless-stopped
+
+volumes:
+  mysql-data:
+  redis-data:
+  rabbitmq-data:
+  emqx-data:
+  emqx-log:
+  influxdb-data:
+  influxdb-config:
+  prometheus-data:
+  grafana-data:
+  elasticsearch-data:
+
+networks:
+  hkt-network:
+    driver: bridge

@@ -1,0 +1,53 @@
+# Kafka配置文件
+# 用于设备接入层的Kafka集成配置
+
+spring:
+  kafka:
+    bootstrap-servers: ${KAFKA_SERVERS:localhost:9092}
+    consumer:
+      group-id: hkt-device-service
+      auto-offset-reset: earliest
+      max-poll-records: 500
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        session.timeout.ms: 30000
+        heartbeat.interval.ms: 10000
+        max.poll.interval.ms: 300000
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      retries: 3
+      properties:
+        # 幂等性配置
+        enable.idempotence: true
+
+# 自定义Kafka配置
+kafka:
+  topic:
+    # 遥测数据Topic配置
+    telemetry:
+      name: device-telemetry
+      partitions: 50
+      replication-factor: 3
+      retention-ms: 2592000000  # 30天
+    # 设备事件Topic配置
+    event:
+      name: device-event
+      partitions: 20
+      replication-factor: 3
+      retention-ms: 7776000000  # 90天
+    # 设备状态Topic配置
+    status:
+      name: device-status
+      partitions: 10
+      replication-factor: 3
+      retention-ms: 604800000  # 7天
+    # 设备命令Topic配置
+    command:
+      name: device-command
+      partitions: 20
+      replication-factor: 3
+      retention-ms: 86400000  # 1天

@@ -1,0 +1,160 @@
+pipeline {
+    agent any
+
+    environment {
+        REGISTRY = 'harbor.hkt-iot.com'
+        PROJECT = 'hkt-iot'
+        CREDENTIALS_ID = 'harbor-credentials'
+        KUBECONFIG_CREDENTIALS_ID = 'k8s-kubeconfig'
+    }
+
+    parameters {
+        choice(
+            name: 'SERVICE',
+            choices: ['user-service', 'device-service', 'notification-service', 'rule-service', 'scene-service', 'smart-apps-service'],
+            description: '选择要构建的服务'
+        )
+        choice(
+            name: 'ENVIRONMENT',
+            choices: ['dev', 'staging', 'prod'],
+            description: '选择部署环境'
+        )
+        string(
+            name: 'VERSION',
+            defaultValue: '1.0.0',
+            description: '镜像版本号'
+        )
+    }
+
+    stages {
+        stage('Code Checkout') {
+            steps {
+                echo 'Checking out code...'
+                checkout scm
+            }
+        }
+
+        stage('Build') {
+            steps {
+                echo "Building ${params.SERVICE}..."
+                sh """
+                    cd ${params.SERVICE}
+                    mvn clean package -DskipTests
+                """
+            }
+        }
+
+        stage('Unit Test') {
+            steps {
+                echo "Running unit tests for ${params.SERVICE}..."
+                sh """
+                    cd ${params.SERVICE}
+                    mvn test
+                """
+            }
+            post {
+                always {
+                    junit '${params.SERVICE}/target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        stage('Code Quality Check') {
+            steps {
+                echo "Running SonarQube analysis..."
+                sh """
+                    cd ${params.SERVICE}
+                    mvn sonar:sonar \
+                        -Dsonar.host.url=http://sonarqube:9000 \
+                        -Dsonar.projectKey=${PROJECT}-${params.SERVICE} \
+                        -Dsonar.login=\${SONAR_TOKEN}
+                """
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                echo "Building Docker image for ${params.SERVICE}..."
+                sh """
+                    docker build -t ${REGISTRY}/${PROJECT}/${params.SERVICE}:${params.VERSION} ${params.SERVICE}/
+                """
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                echo "Pushing Docker image..."
+                withCredentials([usernamePassword(
+                    credentialsId: env.CREDENTIALS_ID,
+                    usernameVariable: 'REGISTRY_USER',
+                    passwordVariable: 'REGISTRY_PASSWORD'
+                )]) {
+                    sh """
+                        echo \${REGISTRY_PASSWORD} | docker login ${REGISTRY} -u \${REGISTRY_USER} --password-stdin
+                        docker push ${REGISTRY}/${PROJECT}/${params.SERVICE}:${params.VERSION}
+                        docker logout ${REGISTRY}
+                    """
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                echo "Deploying ${params.SERVICE} to ${params.ENVIRONMENT}..."
+                withCredentials([file(
+                    credentialsId: env.KUBECONFIG_CREDENTIALS_ID,
+                    variable: 'KUBECONFIG'
+                )]) {
+                    sh """
+                        export KUBECONFIG=${KUBECONFIG}
+                        kubectl set image deployment/${params.SERVICE} ${params.SERVICE}=${REGISTRY}/${PROJECT}/${params.SERVICE}:${params.VERSION} -n ${PROJECT}-${params.ENVIRONMENT}
+                        kubectl rollout status deployment/${params.SERVICE} -n ${PROJECT}-${params.ENVIRONMENT}
+                    """
+                }
+            }
+        }
+
+        stage('Smoke Test') {
+            steps {
+                echo "Running smoke tests..."
+                sh """
+                    kubectl get pods -n ${PROJECT}-${params.ENVIRONMENT} -l app=${params.SERVICE}
+                    kubectl get svc -n ${PROJECT}-${params.ENVIRONMENT}
+                """
+            }
+        }
+
+        stage('Health Check') {
+            steps {
+                echo "Performing health check..."
+                sh """
+                    sleep 30
+                    POD_NAME=\$(kubectl get pods -n ${PROJECT}-${params.ENVIRONMENT} -l app=${params.SERVICE} -o jsonpath='{.items[0].metadata.name}')
+                    kubectl exec -n ${PROJECT}-${params.ENVIRONMENT} \${POD_NAME} -- curl -f http://localhost:8081/actuator/health || exit 1
+                """
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Deployment successful!"
+            emailext(
+                subject: "✅ Deployment Success: ${params.SERVICE} v${params.VERSION}",
+                body: "Service ${params.SERVICE} version ${params.VERSION} has been successfully deployed to ${params.ENVIRONMENT}.",
+                to: "devops-team@hkt-iot.com"
+            )
+        }
+        failure {
+            echo "Deployment failed!"
+            emailext(
+                subject: "❌ Deployment Failed: ${params.SERVICE} v${params.VERSION}",
+                body: "Deployment of ${params.SERVICE} version ${params.VERSION} to ${params.ENVIRONMENT} has failed.",
+                to: "devops-team@hkt-iot.com"
+            )
+        }
+        always {
+            cleanWs()
+        }
+    }
+}

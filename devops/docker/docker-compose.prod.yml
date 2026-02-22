@@ -1,0 +1,164 @@
+# =============================================================================
+# 华宽通智能体系统 - 生产环境 Docker Compose 配置
+# =============================================================================
+# 版本: 1.0.0
+# 说明: 生产环境使用的高可用配置（配合Kubernetes部署）
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ---------------------------------------------------------------------------
+  # MySQL 主从配置
+  # ---------------------------------------------------------------------------
+  mysql-master:
+    image: mysql:8.0
+    container_name: huakuantong-mysql-master
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_REPLICATION_USER: repl
+      MYSQL_REPLICATION_PASSWORD: ${MYSQL_REPL_PASSWORD}
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-master-data:/var/lib/mysql
+      - ./docker/mysql/master.cnf:/etc/mysql/conf.d/master.cnf:ro
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --log-bin=mysql-bin
+      - --server-id=1
+      - --binlog-format=ROW
+      - --expire_logs_days=7
+    networks:
+      - huakuantong-net
+
+  mysql-slave:
+    image: mysql:8.0
+    container_name: huakuantong-mysql-slave
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      TZ: Asia/Shanghai
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql-slave-data:/var/lib/mysql
+      - ./docker/mysql/slave.cnf:/etc/mysql/conf.d/slave.cnf:ro
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --server-id=2
+      - --relay-log=relay-bin
+      - --read-only=1
+    networks:
+      - huakuantong-net
+    depends_on:
+      - mysql-master
+
+  # ---------------------------------------------------------------------------
+  # Redis 哨兵模式配置
+  # ---------------------------------------------------------------------------
+  redis-master:
+    image: redis:7.2-alpine
+    container_name: huakuantong-redis-master
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-master-data:/data
+      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - huakuantong-net
+
+  redis-slave-1:
+    image: redis:7.2-alpine
+    container_name: huakuantong-redis-slave-1
+    restart: always
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-slave-1-data:/data
+      - ./docker/redis/redis-slave.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf --slaveof redis-master 6379
+    networks:
+      - huakuantong-net
+    depends_on:
+      - redis-master
+
+  redis-sentinel-1:
+    image: redis:7.2-alpine
+    container_name: huakuantong-redis-sentinel-1
+    restart: always
+    ports:
+      - "26379:26379"
+    volumes:
+      - ./docker/redis/sentinel.conf:/usr/local/etc/redis/sentinel.conf:ro
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    networks:
+      - huakuantong-net
+    depends_on:
+      - redis-master
+
+  # ---------------------------------------------------------------------------
+  # RabbitMQ 集群配置
+  # ---------------------------------------------------------------------------
+  rabbitmq-node-1:
+    image: rabbitmq:3.12-management-alpine
+    container_name: huakuantong-rabbitmq-1
+    restart: always
+    environment:
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+      RABBITMQ_DEFAULT_VHOST: huakuantong
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq-1-data:/var/lib/rabbitmq
+    networks:
+      - huakuantong-net
+
+  # ---------------------------------------------------------------------------
+  # EMQX 集群配置
+  # ---------------------------------------------------------------------------
+  emqx-node-1:
+    image: emqx/emqx:5.5.0
+    container_name: huakuantong-emqx-1
+    restart: always
+    environment:
+      EMQX_NAME: emqx
+      EMQX_HOST: node1.emqx.cluster
+      EMQX_CLUSTER__DISCOVERY_STRATEGY: manual
+      EMQX_CLUSTER__MANUAL__DISCOVERY_NODES: "emqx@node1.emqx.cluster,emqx@node2.emqx.cluster"
+      TZ: Asia/Shanghai
+    ports:
+      - "1883:1883"
+      - "8883:8883"
+      - "8083:8083"
+      - "18083:18083"
+    volumes:
+      - emqx-1-data:/opt/emqx/data
+      - emqx-1-log:/opt/emqx/log
+    networks:
+      - huakuantong-net
+
+volumes:
+  mysql-master-data:
+  mysql-slave-data:
+  redis-master-data:
+  redis-slave-1-data:
+  rabbitmq-1-data:
+  emqx-1-data:
+  emqx-1-log:
+
+networks:
+  huakuantong-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16

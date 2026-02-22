@@ -1,0 +1,237 @@
+---
+# EMQX Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: emqx
+  namespace: hkt-iot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: emqx
+  template:
+    metadata:
+      labels:
+        app: emqx
+    spec:
+      containers:
+      - name: emqx
+        image: emqx/emqx:5.4.0
+        ports:
+        - containerPort: 1883
+          name: mqtt
+        - containerPort: 8883
+          name: mqtts
+        - containerPort: 8083
+          name: websocket
+        - containerPort: 18083
+          name: dashboard
+        env:
+        - name: EMQX_NAME
+          value: "emqx"
+        - name: EMQX_HOST
+          value: "127.0.0.1"
+        - name: EMQX_DASHBOARD__DEFAULT_USERNAME
+          value: "admin"
+        - name: EMQX_DASHBOARD__DEFAULT_PASSWORD
+          value: "public"
+        volumeMounts:
+        - name: emqx-data
+          mountPath: /opt/emqx/data
+        - name: emqx-log
+          mountPath: /opt/emqx/log
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "200m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+      volumes:
+      - name: emqx-data
+        emptyDir: {}
+      - name: emqx-log
+        emptyDir: {}
+
+---
+# EMQX Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: emqx-service
+  namespace: hkt-iot
+spec:
+  selector:
+    app: emqx
+  ports:
+  - name: mqtt
+    port: 1883
+    targetPort: 1883
+  - name: mqtts
+    port: 8883
+    targetPort: 8883
+  - name: websocket
+    port: 8083
+    targetPort: 8083
+  - name: dashboard
+    port: 18083
+    targetPort: 18083
+  clusterIP: None
+
+---
+# InfluxDB StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: influxdb
+  namespace: hkt-iot
+spec:
+  serviceName: influxdb-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: influxdb
+  template:
+    metadata:
+      labels:
+        app: influxdb
+    spec:
+      containers:
+      - name: influxdb
+        image: influxdb:2.7
+        ports:
+        - containerPort: 8086
+          name: api
+        env:
+        - name: DOCKER_INFLUXDB_INIT_MODE
+          value: "setup"
+        - name: DOCKER_INFLUXDB_INIT_USERNAME
+          value: "admin"
+        - name: DOCKER_INFLUXDB_INIT_PASSWORD
+          value: "admin123"
+        - name: DOCKER_INFLUXDB_INIT_ORG
+          value: "hkt-iot"
+        - name: DOCKER_INFLUXDB_INIT_BUCKET
+          value: "telemetry"
+        - name: DOCKER_INFLUXDB_INIT_ADMIN_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: influxdb-secret
+              key: token
+        volumeMounts:
+        - name: influxdb-data
+          mountPath: /var/lib/influxdb2
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+  volumeClaimTemplates:
+  - metadata:
+      name: influxdb-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 50Gi
+
+---
+# InfluxDB Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: influxdb-service
+  namespace: hkt-iot
+spec:
+  selector:
+    app: influxdb
+  ports:
+  - port: 8086
+    targetPort: 8086
+  clusterIP: None
+
+---
+# Nacos Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nacos
+  namespace: hkt-iot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nacos
+  template:
+    metadata:
+      labels:
+        app: nacos
+    spec:
+      containers:
+      - name: nacos
+        image: nacos/nacos-server:v2.2.3
+        ports:
+        - containerPort: 8848
+          name: client
+        - containerPort: 9848
+          name: client-rpc
+        env:
+        - name: MODE
+          value: "standalone"
+        - name: SPRING_DATASOURCE_PLATFORM
+          value: "mysql"
+        - name: MYSQL_SERVICE_HOST
+          value: "mysql-service"
+        - name: MYSQL_SERVICE_PORT
+          value: "3306"
+        - name: MYSQL_SERVICE_DB_NAME
+          value: "nacos_config"
+        - name: MYSQL_SERVICE_USER
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: username
+        - name: MYSQL_SERVICE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: password
+        - name: NACOS_AUTH_ENABLE
+          value: "true"
+        - name: NACOS_AUTH_TOKEN
+          value: "SecretKey012345678901234567890123456789012345678901234567890123456789"
+        volumeMounts:
+        - name: nacos-logs
+          mountPath: /home/nacos/logs
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+      volumes:
+      - name: nacos-logs
+        emptyDir: {}
+
+---
+# Nacos Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: nacos-service
+  namespace: hkt-iot
+spec:
+  selector:
+    app: nacos
+  ports:
+  - name: client
+    port: 8848
+    targetPort: 8848
+  - name: client-rpc
+    port: 9848
+    targetPort: 9848
+  clusterIP: None

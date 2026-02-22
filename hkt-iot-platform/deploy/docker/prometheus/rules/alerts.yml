@@ -1,0 +1,194 @@
+# Prometheus告警规则
+
+groups:
+  - name: service_alerts
+    interval: 30s
+    rules:
+      # 服务可用性告警
+      - alert: ServiceDown
+        expr: up{job=~".*-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: devops
+        annotations:
+          summary: "服务 {{ $labels.job }} 已宕机"
+          description: "服务 {{ $labels.job }} 已宕机超过1分钟"
+
+      # HTTP请求错误率告警
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m])) by (service)
+            /
+            sum(rate(http_server_requests_seconds_count[5m])) by (service)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "服务 {{ $labels.service }} 错误率过高"
+          description: "服务 {{ $labels.service }} 5分钟内5xx错误率超过5%"
+
+      # 响应时间告警
+      - alert: HighResponseTime
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_server_requests_seconds_bucket[5m])) by (service, le)
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "服务 {{ $labels.service }} 响应时间过长"
+          description: "服务 {{ $labels.service }} P95响应时间超过1秒"
+
+      # CPU使用率告警
+      - alert: HighCPUUsage
+        expr: |
+          (
+            sum(rate(process_cpu_seconds_total{job=~".*-service"}[5m])) by (service)
+            * 100
+          ) > 80
+        for: 10m
+        labels:
+          severity: warning
+          team: devops
+        annotations:
+          summary: "服务 {{ $labels.service }} CPU使用率过高"
+          description: "服务 {{ $labels.service }} CPU使用率持续10分钟超过80%"
+
+      # 内存使用率告警
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            sum(jvm_memory_used_bytes{area="heap"}) by (service)
+            /
+            sum(jvm_memory_max_bytes{area="heap"}) by (service)
+            * 100
+          ) > 85
+        for: 10m
+        labels:
+          severity: warning
+          team: devops
+        annotations:
+          summary: "服务 {{ $labels.service }} 内存使用率过高"
+          description: "服务 {{ $labels.service }} 堆内存使用率持续10分钟超过85%"
+
+      # GC时间告警
+      - alert: LongGCPause
+        expr: |
+          (
+            sum(rate(jvm_gc_pause_seconds_sum{job=~".*-service"}[5m])) by (service)
+            /
+            sum(rate(jvm_gc_pause_seconds_count{job=~".*-service"}[5m])) by (service)
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "服务 {{ $labels.service }} GC暂停时间过长"
+          description: "服务 {{ $labels.service }} 平均GC暂停时间超过100ms"
+
+  - name: infrastructure_alerts
+    interval: 30s
+    rules:
+      # MySQL连接数告警
+      - alert: MySQLHighConnections
+        expr: mysql_global_variables_max_connections - mysql_global_status_threads_connected < 10
+        for: 5m
+        labels:
+          severity: warning
+          team: dba
+        annotations:
+          summary: "MySQL可用连接数不足"
+          description: "MySQL剩余可用连接数少于10"
+
+      # Redis内存使用告警
+      - alert: RedisHighMemory
+        expr: |
+          (
+            redis_memory_used_bytes
+            /
+            redis_memory_max_bytes
+            * 100
+          ) > 90
+        for: 5m
+        labels:
+          severity: warning
+          team: dba
+        annotations:
+          summary: "Redis内存使用率过高"
+          description: "Redis内存使用率超过90%"
+
+      # RabbitMQ队列积压告警
+      - alert: RabbitMQQueueBacklog
+        expr: rabbitmq_queue_messages > 10000
+        for: 10m
+        labels:
+          severity: warning
+          team: devops
+        annotations:
+          summary: "RabbitMQ队列 {{ $labels.queue }} 消息积压"
+          description: "队列 {{ $labels.queue }} 消息数超过10000条"
+
+      # 磁盘空间告警
+      - alert: DiskSpaceLow
+        expr: |
+          (
+            (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100
+          ) < 20
+        for: 5m
+        labels:
+          severity: warning
+          team: devops
+        annotations:
+          summary: "磁盘空间不足"
+          description: "主机 {{ $labels.instance }} 磁盘剩余空间少于20%"
+
+  - name: business_alerts
+    interval: 30s
+    rules:
+      # 在线设备数告警
+      - alert: LowOnlineDevices
+        expr: hkt_iot_devices_online < 100
+        for: 10m
+        labels:
+          severity: info
+          team: operations
+        annotations:
+          summary: "在线设备数过低"
+          description: "当前在线设备数少于100"
+
+      # 通知发送失败率告警
+      - alert: HighNotificationFailureRate
+        expr: |
+          (
+            sum(rate(notification_sent_total{status="failed"}[5m]))
+            /
+            sum(rate(notification_sent_total[5m]))
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: operations
+        annotations:
+          summary: "通知发送失败率过高"
+          description: "通知发送失败率超过10%"
+
+      # 告警处理延迟告警
+      - alert: AlarmProcessingDelay
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(alarm_processing_duration_seconds_bucket[5m])) by (le)
+          ) > 30
+        for: 5m
+        labels:
+          severity: warning
+          team: operations
+        annotations:
+          summary: "告警处理延迟过高"
+          description: "P95告警处理延迟超过30秒"

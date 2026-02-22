@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hkt.iot.device.infrastructure.persistence.mapper.DeviceMapper">
+
+    <!-- 结果映射 -->
+    <resultMap id="DeviceResultMap" type="com.hkt.iot.device.domain.model.Device">
+        <id property="id" column="id"/>
+        <result property="tenantId" column="tenant_id"/>
+        <result property="deviceSn" column="device_sn"/>
+        <result property="deviceName" column="device_name"/>
+        <result property="deviceCode" column="device_code"/>
+        <result property="deviceType" column="device_type"/>
+        <result property="deviceModel" column="device_model"/>
+        <result property="deviceCategory" column="device_category"/>
+        <result property="thingModelId" column="thing_model_id"/>
+        <result property="spaceId" column="space_id"/>
+        <result property="parentDeviceId" column="parent_device_id"/>
+        <result property="deviceStatus" column="device_status"/>
+        <result property="onlineStatus" column="online_status"/>
+        <result property="activationStatus" column="activation_status"/>
+        <result property="locationDesc" column="location_desc"/>
+        <result property="longitude" column="longitude"/>
+        <result property="latitude" column="latitude"/>
+        <result property="altitude" column="altitude"/>
+        <result property="ipAddress" column="ip_address"/>
+        <result property="macAddress" column="mac_address"/>
+        <result property="gatewayId" column="gateway_id"/>
+        <result property="firmwareVersion" column="firmware_version"/>
+        <result property="hardwareVersion" column="hardware_version"/>
+        <result property="softwareVersion" column="software_version"/>
+        <result property="lastOnlineTime" column="last_online_time"/>
+        <result property="lastOfflineTime" column="last_offline_time"/>
+        <result property="lastDataTime" column="last_data_time"/>
+        <result property="isLocked" column="is_locked"/>
+        <result property="lockedBy" column="locked_by"/>
+        <result property="lockedAt" column="locked_at"/>
+        <result property="lockReason" column="lock_reason"/>
+        <result property="version" column="version"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="updatedBy" column="updated_by"/>
+        <result property="deleted" column="deleted"/>
+        <result property="deletedAt" column="deleted_at"/>
+        <result property="deletedBy" column="deleted_by"/>
+    </resultMap>
+
+    <!-- 查询设备详情（含关联信息） -->
+    <select id="selectDeviceDetail" resultMap="DeviceResultMap">
+        SELECT d.*,
+               m.model_name as thing_model_name,
+               s.space_name,
+               s.space_code,
+               p.device_name as parent_device_name
+        FROM device d
+        LEFT JOIN device_thing_model m ON d.thing_model_id = m.id AND m.deleted = 0
+        LEFT JOIN space s ON d.space_id = s.id AND s.deleted = 0
+        LEFT JOIN device p ON d.parent_device_id = p.id AND p.deleted = 0
+        WHERE d.id = #{deviceId}
+          AND d.deleted = 0
+    </select>
+
+    <!-- 分页查询设备列表 -->
+    <select id="selectDevicesPage" resultMap="DeviceResultMap">
+        SELECT d.*
+        FROM device d
+        WHERE d.deleted = 0
+        <if test="tenantId != null">
+            AND d.tenant_id = #{tenantId}
+        </if>
+        <if test="deviceType != null and deviceType != ''">
+            AND d.device_type = #{deviceType}
+        </if>
+        <if test="deviceStatus != null and deviceStatus != ''">
+            AND d.device_status = #{deviceStatus}
+        </if>
+        <if test="onlineStatus != null">
+            AND d.online_status = #{onlineStatus}
+        </if>
+        <if test="spaceId != null">
+            AND d.space_id = #{spaceId}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (d.device_name LIKE CONCAT('%', #{keyword}, '%')
+                 OR d.device_code LIKE CONCAT('%', #{keyword}, '%')
+                 OR d.device_sn LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        ORDER BY d.created_at DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <!-- 统计设备数量 -->
+    <select id="countDevices" resultType="long">
+        SELECT COUNT(*)
+        FROM device d
+        WHERE d.deleted = 0
+        <if test="tenantId != null">
+            AND d.tenant_id = #{tenantId}
+        </if>
+        <if test="deviceType != null and deviceType != ''">
+            AND d.device_type = #{deviceType}
+        </if>
+        <if test="deviceStatus != null and deviceStatus != ''">
+            AND d.device_status = #{deviceStatus}
+        </if>
+        <if test="onlineStatus != null">
+            AND d.online_status = #{onlineStatus}
+        </if>
+        <if test="spaceId != null">
+            AND d.space_id = #{spaceId}
+        </if>
+    </select>
+
+    <!-- 查询设备在线状态统计 -->
+    <select id="selectDeviceStatusStats" resultType="map">
+        SELECT
+            d.device_status,
+            d.online_status,
+            COUNT(*) as count
+        FROM device d
+        WHERE d.deleted = 0
+        AND d.tenant_id = #{tenantId}
+        GROUP BY d.device_status, d.online_status
+    </select>
+
+    <!-- 查询设备类型统计 -->
+    <select id="selectDeviceTypeStats" resultType="map">
+        SELECT
+            d.device_type,
+            COUNT(*) as count
+        FROM device d
+        WHERE d.deleted = 0
+        AND d.tenant_id = #{tenantId}
+        GROUP BY d.device_type
+    </select>
+
+</mapper>

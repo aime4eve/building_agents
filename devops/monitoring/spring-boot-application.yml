@@ -1,0 +1,111 @@
+# =============================================================================
+# Spring Boot Actuator + Prometheus 配置
+# =============================================================================
+# 说明: 将此配置添加到各微服务的 application.yml 中
+# =============================================================================
+
+# Spring Boot Actuator 配置
+management:
+  # Actuator 端点配置
+  endpoints:
+    web:
+      exposure:
+        # 暴露所有需要的端点
+        include: health,info,metrics,prometheus,env,configprops,beans,threaddump,heapdump
+      base-path: /actuator
+  # 健康检查配置
+  health:
+    defaults:
+      enabled: true
+    redis:
+      enabled: true
+    db:
+      enabled: true
+    rabbit:
+      enabled: true
+    diskspace:
+      enabled: true
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  # 指标配置
+  metrics:
+    # 启用 Prometheus 导出
+    export:
+      prometheus:
+        enabled: true
+    # 启用 JVM 指标
+    enable:
+      jvm: true
+      tomcat: true
+      process: true
+      system: true
+      spring: true
+      logback: true
+    # 标签配置
+    tags:
+      application: ${spring.application.name}
+      environment: ${spring.profiles.active}
+      region: ${REGION:default}
+    # 分布式配置
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      percentiles:
+        http.server.requests: 0.5, 0.95, 0.99
+      sla:
+        http.server.requests: 100ms, 200ms, 500ms, 1s, 2s
+  # 审计日志
+  audit:
+    events:
+      include: AUTHENTICATION_SUCCESS, AUTHENTICATION_FAILURE, ACCESS_DENIED
+  # HTTP 追踪
+  tracing:
+    sampling:
+      probability: 0.1 # 10% 采样率
+  # Micrometer 追踪配置
+  tracing:
+    propagation:
+      type: w3c
+    zipkin:
+      endpoint: http://zipkin:9411/api/v2/spans
+
+# 应用程序状态配置
+spring:
+  application:
+    name: user-service
+  cloud:
+    nacos:
+      discovery:
+        # 服务注册时启用健康检查
+        heart-beat-interval: 5000
+        heart-beat-timeout: 15000
+        ip-delete-timeout: 30000
+
+# 自定义健康检查指示器
+health:
+  custom:
+    dependencies:
+      # 配置关键依赖的健康检查
+      database:
+        timeout: 3000
+        retries: 3
+      redis:
+        timeout: 1000
+        retries: 2
+      rabbitmq:
+        timeout: 2000
+        retries: 2
+
+# 日志配置（支持结构化日志）
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} [%X{traceId},%X{spanId}] - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} [%X{traceId},%X{spanId}] - %msg%n"
+  # 日志级别配置
+  level:
+    root: INFO
+    com.huakuantong: DEBUG
+    org.springframework.cloud: DEBUG
+    org.springframework.web: DEBUG

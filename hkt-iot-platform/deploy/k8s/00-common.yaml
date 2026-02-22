@@ -1,0 +1,71 @@
+# 命名空间
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hkt-iot
+  labels:
+    name: hkt-iot
+    environment: production
+
+---
+# ConfigMap for common configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: common-config
+  namespace: hkt-iot
+data:
+  SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: "nacos-service.hkt-iot.svc.cluster.local:8848"
+  SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR: "nacos-service.hkt-iot.svc.cluster.local:8848"
+  SPRING_DATA_REDIS_HOST: "redis-service.hkt-iot.svc.cluster.local"
+  SPRING_DATA_REDIS_PORT: "6379"
+  SPRING_RABBITMQ_HOST: "rabbitmq-service.hkt-iot.svc.cluster.local"
+  SPRING_RABBITMQ_PORT: "5672"
+  INFLUXDB_URL: "http://influxdb-service.hkt-iot.svc.cluster.local:8086"
+  MQTT_BROKER_URL: "tcp://emqx-service.hkt-iot.svc.cluster.local:1883"
+
+---
+# Secret for sensitive data
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-secret
+  namespace: hkt-iot
+type: Opaque
+data:
+  username: cm9vdA==  # root (base64 encoded)
+  password: cm9vdA==  # root (base64 encoded)
+
+---
+# Secret for Redis
+apiVersion: v1
+kind: Secret
+metadata:
+  name: redis-secret
+  namespace: hkt-iot
+type: Opaque
+data:
+  password: cmVkaXMxMjM=  # redis123 (base64 encoded)
+
+---
+# Secret for RabbitMQ
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rabbitmq-secret
+  namespace: hkt-iot
+type: Opaque
+data:
+  username: YWRtaW4=  # admin (base64 encoded)
+  password: YWRtaW4xMjM=  # admin123 (base64 encoded)
+
+---
+# Secret for InfluxDB
+apiVersion: v1
+kind: Secret
+metadata:
+  name: influxdb-secret
+  namespace: hkt-iot
+type: Opaque
+data:
+  token: bXktc3VwZXItc2VjcmV0LXRva2Vu  # my-super-secret-token (base64 encoded)
