@@ -25,7 +25,10 @@
       "Bash(git commit:*)",
       "Bash(findstr:*)",
       "Bash(ls:*)",
-      "Bash(head:*)"
+      "Bash(head:*)",
+      "Bash(git push:*)",
+      "Bash(xargs:*)",
+      "Bash(dir:*)"
     ]
   }
 }

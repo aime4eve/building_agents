@@ -50,8 +50,8 @@ export interface NotificationConfig {
 }
 
 // 向后端兼容的类型别名
-export const ScenarioTrigger = SceneTrigger
-export const ScenarioAction = SceneAction
+export type ScenarioTrigger = SceneTrigger
+export type ScenarioAction = SceneAction
 
 // 场景查询参数
 export interface ScenarioQuery extends PageRequest {

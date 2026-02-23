@@ -190,6 +190,7 @@ import {
   FullscreenExitOutlined,
   MoonOutlined,
   SunOutlined,
+  ShoppingOutlined,
 } from '@ant-design/icons-vue'
 
 const router = useRouter()
@@ -285,6 +286,23 @@ const menuList = computed(() => [
       {
         key: '/smart-apps/smart-livestock',
         label: '智慧畜牧',
+        icon: UnorderedListOutlined,
+      },
+    ],
+  },
+  {
+    key: '/notification',
+    label: '通知中心',
+    icon: BellOutlined,
+  },
+  {
+    key: '/order',
+    label: '订单中心',
+    icon: ShoppingOutlined,
+    children: [
+      {
+        key: '/order/list',
+        label: '订单列表',
         icon: UnorderedListOutlined,
       },
     ],

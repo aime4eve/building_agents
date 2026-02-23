@@ -8,7 +8,6 @@ const Login = () => import('@/views/Login.vue')
 const Dashboard = () => import('@/views/Dashboard.vue')
 const DeviceList = () => import('@/views/device/DeviceList.vue')
 const DeviceDetail = () => import('@/views/device/DeviceDetail.vue')
-const SpaceList = () => import('@/views/space/index.vue')
 const SpaceManagement = () => import('@/views/space/SpaceManagement.vue')
 const SpaceDetail = () => import('@/views/space/detail.vue')
 const SpaceForm = () => import('@/views/space/form.vue')
@@ -21,6 +20,8 @@ const UserList = () => import('@/views/user/UserList.vue')
 const MoldControl = () => import('@/views/smart-apps/MoldControl.vue')
 const SmartLivestock = () => import('@/views/smart-apps/SmartLivestock.vue')
 const NotificationManagement = () => import('@/views/notification/NotificationManagement.vue')
+const OrderList = () => import('@/views/order/OrderList.vue')
+const Payment = () => import('@/views/order/Payment.vue')
 const NotFound = () => import('@/views/NotFound.vue')
 
 // 路由配置
@@ -92,19 +93,31 @@ const routes: RouteRecordRaw[] = [
       {
         path: '/space',
         name: 'Space',
-        redirect: '/spaces',
+        redirect: '/space/management',
         meta: {
           title: '空间管理',
           icon: 'ApartmentOutlined',
         },
+        children: [
+          {
+            path: '/space/management',
+            name: 'SpaceManagement',
+            component: SpaceManagement,
+            meta: {
+              title: '空间管理',
+              icon: 'UnorderedListOutlined',
+            },
+          },
+        ],
       },
       {
         path: '/spaces',
-        name: 'SpaceList',
-        component: SpaceList,
+        name: 'SpaceManagement',
+        redirect: '/space/management',
         meta: {
           title: '空间管理',
           requiresAuth: true,
+          hidden: true,
         },
       },
       {
@@ -241,6 +254,35 @@ const routes: RouteRecordRaw[] = [
           title: '通知中心',
           icon: 'BellOutlined',
         },
+      },
+      {
+        path: '/order',
+        name: 'Order',
+        redirect: '/order/list',
+        meta: {
+          title: '订单中心',
+          icon: 'ShoppingOutlined',
+        },
+        children: [
+          {
+            path: '/order/list',
+            name: 'OrderList',
+            component: OrderList,
+            meta: {
+              title: '订单列表',
+              icon: 'UnorderedListOutlined',
+            },
+          },
+          {
+            path: '/order/payment',
+            name: 'Payment',
+            component: Payment,
+            meta: {
+              title: '支付页面',
+              hidden: true,
+            },
+          },
+        ],
       },
     ],
   },
