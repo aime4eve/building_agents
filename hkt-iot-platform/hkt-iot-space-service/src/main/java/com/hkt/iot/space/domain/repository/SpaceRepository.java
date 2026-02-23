@@ -5,6 +5,7 @@ import com.hkt.iot.space.domain.model.Space;
 import com.hkt.iot.space.domain.model.Space.SpaceType;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -83,4 +84,28 @@ public interface SpaceRepository extends OptimisticLockRepository<Space, Long> {
      * @return 空间列表
      */
     List<Space> findByTenantIdAndSpaceLevel(Long tenantId, Integer spaceLevel);
+
+    /**
+     * 统计各类型空间数量
+     *
+     * @param tenantId 租户ID
+     * @return 按类型分组的数量统计
+     */
+    Map<String, Long> countGroupByType(Long tenantId);
+
+    /**
+     * 统计各状态空间数量
+     *
+     * @param tenantId 租户ID
+     * @return 按状态分组的数量统计
+     */
+    Map<String, Long> countGroupByStatus(Long tenantId);
+
+    /**
+     * 统计各层级空间数量
+     *
+     * @param tenantId 租户ID
+     * @return 按层级分组的数量统计
+     */
+    Map<Integer, Long> countGroupByLevel(Long tenantId);
 }

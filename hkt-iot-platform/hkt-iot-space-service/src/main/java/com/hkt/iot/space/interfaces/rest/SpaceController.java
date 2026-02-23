@@ -4,8 +4,14 @@ import com.hkt.iot.common.result.Result;
 import com.hkt.iot.space.application.command.*;
 import com.hkt.iot.space.application.dto.LogicalSpaceGroupDTO;
 import com.hkt.iot.space.application.dto.SpaceDTO;
+import com.hkt.iot.space.application.dto.SpacePathDTO;
 import com.hkt.iot.space.application.dto.SpaceResourceDTO;
+import com.hkt.iot.space.application.dto.SpaceStatisticsDTO;
+import com.hkt.iot.space.application.dto.SpaceTopologyDTO;
 import com.hkt.iot.space.application.query.SpaceQuery;
+import com.hkt.iot.space.interfaces.rest.dto.ContainsCoordinateRequest;
+import com.hkt.iot.space.interfaces.rest.dto.SetBoundsRequest;
+import com.hkt.iot.space.interfaces.rest.dto.SpatialBoundsDTO;
 import com.hkt.iot.space.application.service.SpaceApplicationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -384,6 +390,103 @@ public class SpaceController {
             return Result.success();
         } catch (Exception e) {
             log.error("从分组移除空间失败: groupId={}, spaceId={}, error={}", groupId, spaceId, e.getMessage(), e);
+            return Result.error("500", e.getMessage());
+        }
+    }
+
+    // ==================== 空间边界操作 ====================
+
+    @PutMapping("/spaces/{spaceId}/bounds")
+    @Operation(summary = "设置空间边界", description = "设置空间的地理坐标边界范围")
+    public Result<Void> setSpaceBounds(
+            @Parameter(description = "空间ID") @PathVariable Long spaceId,
+            @Valid @RequestBody SetBoundsRequest request,
+            @RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId) {
+        try {
+            spaceApplicationService.setSpaceBounds(
+                    spaceId,
+                    request.getNortheastLatitude(),
+                    request.getNortheastLongitude(),
+                    request.getSouthwestLatitude(),
+                    request.getSouthwestLongitude(),
+                    userId
+            );
+            return Result.success();
+        } catch (Exception e) {
+            log.error("设置空间边界失败: spaceId={}, error={}", spaceId, e.getMessage(), e);
+            return Result.error("500", e.getMessage());
+        }
+    }
+
+    @GetMapping("/spaces/{spaceId}/bounds")
+    @Operation(summary = "获取空间边界", description = "获取空间的地理坐标边界范围")
+    public Result<SpatialBoundsDTO> getSpaceBounds(
+            @Parameter(description = "空间ID") @PathVariable Long spaceId) {
+        try {
+            SpatialBoundsDTO bounds = spaceApplicationService.getSpaceBounds(spaceId);
+            return Result.success(bounds);
+        } catch (Exception e) {
+            log.error("获取空间边界失败: spaceId={}, error={}", spaceId, e.getMessage(), e);
+            return Result.error("500", e.getMessage());
+        }
+    }
+
+    @PostMapping("/spaces/{spaceId}/contains")
+    @Operation(summary = "判断坐标是否在边界内", description = "判断指定坐标点是否在空间边界范围内")
+    public Result<Boolean> containsCoordinate(
+            @Parameter(description = "空间ID") @PathVariable Long spaceId,
+            @Valid @RequestBody ContainsCoordinateRequest request) {
+        try {
+            boolean contains = spaceApplicationService.containsCoordinate(
+                    spaceId,
+                    request.getLatitude(),
+                    request.getLongitude()
+            );
+            return Result.success(contains);
+        } catch (Exception e) {
+            log.error("判断坐标是否在边界内失败: spaceId={}, lat={}, lon={}, error={}",
+                    spaceId, request.getLatitude(), request.getLongitude(), e.getMessage(), e);
+            return Result.error("500", e.getMessage());
+        }
+    }
+
+    // ==================== 空间拓扑操作 ====================
+
+    @GetMapping("/spaces/{spaceId}/topology")
+    @Operation(summary = "获取空间拓扑", description = "获取空间的拓扑结构树")
+    public Result<SpaceTopologyDTO> getSpaceTopology(
+            @Parameter(description = "空间ID") @PathVariable Long spaceId) {
+        try {
+            SpaceTopologyDTO topology = spaceApplicationService.getSpaceTopology(spaceId);
+            return Result.success(topology);
+        } catch (Exception e) {
+            log.error("获取空间拓扑失败: spaceId={}, error={}", spaceId, e.getMessage(), e);
+            return Result.error("500", e.getMessage());
+        }
+    }
+
+    @GetMapping("/spaces/{spaceId}/path")
+    @Operation(summary = "获取空间路径", description = "获取从根空间到当前空间的完整路径")
+    public Result<SpacePathDTO> getSpacePath(
+            @Parameter(description = "空间ID") @PathVariable Long spaceId) {
+        try {
+            SpacePathDTO path = spaceApplicationService.getSpacePath(spaceId);
+            return Result.success(path);
+        } catch (Exception e) {
+            log.error("获取空间路径失败: spaceId={}, error={}", spaceId, e.getMessage(), e);
+            return Result.error("500", e.getMessage());
+        }
+    }
+
+    @GetMapping("/spaces/statistics")
+    @Operation(summary = "获取空间统计", description = "获取租户下空间的统计信息")
+    public Result<SpaceStatisticsDTO> getSpaceStatistics(
+            @RequestParam Long tenantId) {
+        try {
+            SpaceStatisticsDTO statistics = spaceApplicationService.getSpaceStatistics(tenantId);
+            return Result.success(statistics);
+        } catch (Exception e) {
+            log.error("获取空间统计失败: tenantId={}, error={}", tenantId, e.getMessage(), e);
             return Result.error("500", e.getMessage());
         }
     }

@@ -11,7 +11,9 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.HashMap;
 
 /**
  * 空间Repository实现
@@ -142,5 +144,50 @@ public class SpaceRepositoryImpl implements SpaceRepository, OptimisticLockRepos
             Space.class
         );
         return query.getResultList();
+    }
+
+    @Override
+    public Map<String, Long> countGroupByType(Long tenantId) {
+        TypedQuery<Object[]> query = entityManager.createQuery(
+            "SELECT s.spaceType, COUNT(s) FROM Space s WHERE s.tenantId = :tenantId AND s.deleted = 0 GROUP BY s.spaceType",
+            Object[].class
+        );
+        query.setParameter("tenantId", tenantId);
+        
+        Map<String, Long> result = new HashMap<>();
+        for (Object[] row : query.getResultList()) {
+            result.put(row[0].toString(), (Long) row[1]);
+        }
+        return result;
+    }
+
+    @Override
+    public Map<String, Long> countGroupByStatus(Long tenantId) {
+        TypedQuery<Object[]> query = entityManager.createQuery(
+            "SELECT s.spaceStatus, COUNT(s) FROM Space s WHERE s.tenantId = :tenantId AND s.deleted = 0 GROUP BY s.spaceStatus",
+            Object[].class
+        );
+        query.setParameter("tenantId", tenantId);
+        
+        Map<String, Long> result = new HashMap<>();
+        for (Object[] row : query.getResultList()) {
+            result.put(row[0].toString(), (Long) row[1]);
+        }
+        return result;
+    }
+
+    @Override
+    public Map<Integer, Long> countGroupByLevel(Long tenantId) {
+        TypedQuery<Object[]> query = entityManager.createQuery(
+            "SELECT s.spaceLevel, COUNT(s) FROM Space s WHERE s.tenantId = :tenantId AND s.deleted = 0 GROUP BY s.spaceLevel",
+            Object[].class
+        );
+        query.setParameter("tenantId", tenantId);
+        
+        Map<Integer, Long> result = new HashMap<>();
+        for (Object[] row : query.getResultList()) {
+            result.put((Integer) row[0], (Long) row[1]);
+        }
+        return result;
     }
 }

@@ -29,6 +29,13 @@ public enum WorkflowErrorCode {
     CONTRACT_ALREADY_SIGNED("W0401", "合同已签署"),
     ASSET_NOT_TRANSFERABLE("W0402", "资产不可调拨"),
     SPACE_NOT_AVAILABLE("W0403", "空间不可用"),
+    WORK_ORDER_NOT_FOUND("W0404", "工单不存在"),
+    WORK_ORDER_STATUS_INVALID("W0405", "工单状态无效"),
+    WORK_ORDER_ALREADY_COMPLETED("W0406", "工单已完成"),
+    WORK_ORDER_ALREADY_CANCELLED("W0407", "工单已取消"),
+    WORK_ORDER_ASSIGN_FAILED("W0408", "工单分配失败"),
+    WORK_ORDER_TEMPLATE_NOT_FOUND("W0409", "工单模板不存在"),
+    AUTO_ASSIGN_RULE_NOT_FOUND("W0410", "自动派单规则不存在"),
 
     // SLA错误 (W05xx)
     SLA_CONFIG_NOT_FOUND("W0500", "SLA配置不存在"),

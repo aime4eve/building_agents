@@ -1,0 +1,11 @@
+spring:
+  config:
+    import: optional:nacos:hkt-iot-workflow-service.yml
+  cloud:
+    nacos:
+      config:
+        server-addr: localhost:8848
+        namespace: public
+        group: DEFAULT_GROUP
+        file-extension: yml
+        enabled: true

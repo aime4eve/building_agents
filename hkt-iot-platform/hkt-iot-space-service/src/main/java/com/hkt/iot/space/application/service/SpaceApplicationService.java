@@ -6,10 +6,14 @@ import com.hkt.iot.common.result.PageResult;
 import com.hkt.iot.space.application.command.*;
 import com.hkt.iot.space.application.dto.LogicalSpaceGroupDTO;
 import com.hkt.iot.space.application.dto.SpaceDTO;
+import com.hkt.iot.space.application.dto.SpacePathDTO;
 import com.hkt.iot.space.application.dto.SpaceResourceDTO;
+import com.hkt.iot.space.application.dto.SpaceStatisticsDTO;
+import com.hkt.iot.space.application.dto.SpaceTopologyDTO;
 import com.hkt.iot.space.application.query.SpaceQuery;
 import com.hkt.iot.space.domain.model.*;
 import com.hkt.iot.space.domain.repository.*;
+import com.hkt.iot.space.interfaces.rest.dto.SpatialBoundsDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -21,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -326,6 +331,151 @@ public class SpaceApplicationService {
         tree.add(buildSpaceTree(rootSpace));
 
         return tree;
+    }
+
+    // ==================== 空间边界管理 ====================
+
+    /**
+     * 设置空间边界
+     * 设置空间的地理坐标边界范围
+     *
+     * @param spaceId 空间ID
+     * @param northeastLatitude 东北角纬度
+     * @param northeastLongitude 东北角经度
+     * @param southwestLatitude 西南角纬度
+     * @param southwestLongitude 西南角经度
+     * @param userId 操作用户ID
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void setSpaceBounds(Long spaceId, java.math.BigDecimal northeastLatitude,
+                               java.math.BigDecimal northeastLongitude,
+                               java.math.BigDecimal southwestLatitude,
+                               java.math.BigDecimal southwestLongitude,
+                               Long userId) {
+        log.info("设置空间边界: spaceId={}, neLat={}, neLon={}, swLat={}, swLon={}",
+                spaceId, northeastLatitude, northeastLongitude, southwestLatitude, southwestLongitude);
+
+        Space space = spaceRepository.findById(spaceId)
+                .orElseThrow(() -> new BizException(ErrorCode.SPACE_NOT_FOUND, "空间不存在: " + spaceId));
+
+        SpatialBounds bounds = SpatialBounds.of(
+                Coordinate.of(northeastLatitude, northeastLongitude),
+                Coordinate.of(southwestLatitude, southwestLongitude)
+        );
+
+        space.setSpatialBounds(bounds);
+        space.setUpdatedBy(userId);
+        spaceRepository.save(space);
+
+        log.info("空间边界设置成功: spaceId={}", spaceId);
+    }
+
+    /**
+     * 获取空间边界
+     * 获取空间的地理坐标边界范围
+     *
+     * @param spaceId 空间ID
+     * @return 空间边界DTO
+     */
+    @Transactional(readOnly = true)
+    public SpatialBoundsDTO getSpaceBounds(Long spaceId) {
+        log.info("获取空间边界: spaceId={}", spaceId);
+
+        Space space = spaceRepository.findById(spaceId)
+                .orElseThrow(() -> new BizException(ErrorCode.SPACE_NOT_FOUND, "空间不存在: " + spaceId));
+
+        SpatialBounds bounds = space.getSpatialBounds();
+        if (bounds == null) {
+            return null;
+        }
+
+        return SpatialBoundsDTO.builder()
+                .northeastLatitude(bounds.getNortheast().getLatitude())
+                .northeastLongitude(bounds.getNortheast().getLongitude())
+                .southwestLatitude(bounds.getSouthwest().getLatitude())
+                .southwestLongitude(bounds.getSouthwest().getLongitude())
+                .build();
+    }
+
+    /**
+     * 判断坐标是否在空间边界内
+     * 判断指定坐标点是否在空间边界范围内
+     *
+     * @param spaceId 空间ID
+     * @param latitude 纬度
+     * @param longitude 经度
+     * @return 如果坐标在边界内返回 true，否则返回 false
+     */
+    @Transactional(readOnly = true)
+    public boolean containsCoordinate(Long spaceId, java.math.BigDecimal latitude, java.math.BigDecimal longitude) {
+        log.info("判断坐标是否在边界内: spaceId={}, lat={}, lon={}", spaceId, latitude, longitude);
+
+        Space space = spaceRepository.findById(spaceId)
+                .orElseThrow(() -> new BizException(ErrorCode.SPACE_NOT_FOUND, "空间不存在: " + spaceId));
+
+        Coordinate coordinate = Coordinate.of(latitude, longitude);
+        return space.containsCoordinate(coordinate);
+    }
+
+    // ==================== 空间拓扑查询 ====================
+
+    /**
+     * 获取空间拓扑结构
+     * 返回指定空间及其所有子空间的树形拓扑结构
+     *
+     * @param spaceId 空间ID
+     * @return 空间拓扑DTO
+     */
+    @Transactional(readOnly = true)
+    public SpaceTopologyDTO getSpaceTopology(Long spaceId) {
+        log.info("获取空间拓扑: spaceId={}", spaceId);
+
+        Space space = spaceRepository.findById(spaceId)
+                .orElseThrow(() -> new BizException(ErrorCode.SPACE_NOT_FOUND, "空间不存在: " + spaceId));
+
+        return buildSpaceTopology(space);
+    }
+
+    /**
+     * 获取空间路径
+     * 返回从根节点到当前节点的完整路径信息
+     *
+     * @param spaceId 空间ID
+     * @return 空间路径DTO
+     */
+    @Transactional(readOnly = true)
+    public SpacePathDTO getSpacePath(Long spaceId) {
+        log.info("获取空间路径: spaceId={}", spaceId);
+
+        Space space = spaceRepository.findById(spaceId)
+                .orElseThrow(() -> new BizException(ErrorCode.SPACE_NOT_FOUND, "空间不存在: " + spaceId));
+
+        return buildSpacePath(space);
+    }
+
+    /**
+     * 获取空间统计信息
+     * 返回租户下空间的各类统计数据
+     *
+     * @param tenantId 租户ID
+     * @return 空间统计DTO
+     */
+    @Transactional(readOnly = true)
+    public SpaceStatisticsDTO getSpaceStatistics(Long tenantId) {
+        log.info("获取空间统计: tenantId={}", tenantId);
+
+        long totalSpaces = spaceRepository.countByTenantId(tenantId);
+        Map<String, Long> countByType = spaceRepository.countGroupByType(tenantId);
+        Map<String, Long> countByStatus = spaceRepository.countGroupByStatus(tenantId);
+        Map<Integer, Long> countByLevel = spaceRepository.countGroupByLevel(tenantId);
+
+        return SpaceStatisticsDTO.builder()
+                .tenantId(tenantId)
+                .totalSpaces(totalSpaces)
+                .countByType(countByType)
+                .countByStatus(countByStatus)
+                .countByLevel(countByLevel)
+                .build();
     }
 
     // ==================== 空间资源管理 ====================
@@ -768,6 +918,83 @@ public class SpaceApplicationService {
         }
 
         return dto;
+    }
+
+    /**
+     * 递归构建空间拓扑结构
+     *
+     * @param space 空间实体
+     * @return 空间拓扑DTO
+     */
+    private SpaceTopologyDTO buildSpaceTopology(Space space) {
+        String parentSpaceName = null;
+        if (space.getParentSpaceId() != null) {
+            parentSpaceName = spaceRepository.findById(space.getParentSpaceId())
+                    .map(Space::getSpaceName)
+                    .orElse(null);
+        }
+
+        List<Space> childSpaces = spaceRepository.findByParentSpaceId(space.getId());
+        List<SpaceTopologyDTO> children = childSpaces.stream()
+                .map(this::buildSpaceTopology)
+                .collect(Collectors.toList());
+
+        return SpaceTopologyDTO.builder()
+                .id(space.getId())
+                .spaceCode(space.getSpaceCode())
+                .spaceName(space.getSpaceName())
+                .spaceType(space.getSpaceType().name())
+                .spaceStatus(space.getSpaceStatus().name())
+                .parentSpaceId(space.getParentSpaceId())
+                .parentSpaceName(parentSpaceName)
+                .spaceLevel(space.getSpaceLevel())
+                .longitude(space.getLongitude())
+                .latitude(space.getLatitude())
+                .children(children)
+                .childCount(children.size())
+                .build();
+    }
+
+    /**
+     * 构建空间路径
+     * 从根节点到当前节点的完整路径
+     *
+     * @param space 空间实体
+     * @return 空间路径DTO
+     */
+    private SpacePathDTO buildSpacePath(Space space) {
+        List<SpacePathDTO.SpacePathNode> pathNodes = new ArrayList<>();
+
+        pathNodes.add(SpacePathDTO.SpacePathNode.builder()
+                .spaceId(space.getId())
+                .spaceCode(space.getSpaceCode())
+                .spaceName(space.getSpaceName())
+                .spaceType(space.getSpaceType().name())
+                .spaceLevel(space.getSpaceLevel())
+                .build());
+
+        Long parentId = space.getParentSpaceId();
+        while (parentId != null) {
+            Space parent = spaceRepository.findById(parentId).orElse(null);
+            if (parent == null) {
+                break;
+            }
+            pathNodes.add(0, SpacePathDTO.SpacePathNode.builder()
+                    .spaceId(parent.getId())
+                    .spaceCode(parent.getSpaceCode())
+                    .spaceName(parent.getSpaceName())
+                    .spaceType(parent.getSpaceType().name())
+                    .spaceLevel(parent.getSpaceLevel())
+                    .build());
+            parentId = parent.getParentSpaceId();
+        }
+
+        return SpacePathDTO.builder()
+                .spaceId(space.getId())
+                .spaceCode(space.getSpaceCode())
+                .spacePath(space.getSpacePath())
+                .pathNodes(pathNodes)
+                .build();
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.hkt.iot.space.domain.model;
 
 import com.hkt.iot.domain.model.AggregateRoot;
+import com.hkt.iot.space.domain.event.SpaceBoundsUpdatedEvent;
 import com.hkt.iot.space.domain.event.SpaceDeletedEvent;
 import com.hkt.iot.space.domain.event.SpaceStatusChangedEvent;
 import com.hkt.iot.space.domain.event.SpaceUpdatedEvent;
@@ -78,6 +79,9 @@ public class Space extends AggregateRoot<Long> {
     @Column(name = "boundary", columnDefinition = "JSON")
     @Transient
     private List<List<BigDecimal>> boundary;
+
+    @Transient
+    private SpatialBounds spatialBounds;
 
     @Column(name = "area", precision = 10, scale = 2)
     private BigDecimal area;
@@ -243,6 +247,51 @@ public class Space extends AggregateRoot<Long> {
         this.area = area;
         this.updatedAt = LocalDateTime.now();
         registerUpdateEvent();
+    }
+
+    /**
+     * 设置空间边界
+     * 校验边界有效性并更新时间戳，同时注册边界更新事件
+     *
+     * @param spatialBounds 空间边界值对象
+     * @throws IllegalArgumentException 如果边界无效
+     */
+    public void setSpatialBounds(SpatialBounds spatialBounds) {
+        if (spatialBounds != null && !spatialBounds.isValid()) {
+            throw new IllegalArgumentException("无效的空间边界：东北角坐标必须大于西南角坐标");
+        }
+        this.spatialBounds = spatialBounds;
+        this.updatedAt = LocalDateTime.now();
+        registerBoundsUpdatedEvent(spatialBounds);
+    }
+
+    /**
+     * 判断坐标是否在空间边界内
+     * 如果空间没有设置边界，则返回 false
+     *
+     * @param coordinate 要判断的坐标
+     * @return 如果坐标在边界内返回 true，否则返回 false
+     */
+    public boolean containsCoordinate(Coordinate coordinate) {
+        if (this.spatialBounds == null) {
+            return false;
+        }
+        return this.spatialBounds.contains(coordinate);
+    }
+
+    /**
+     * 注册边界更新事件
+     */
+    private void registerBoundsUpdatedEvent(SpatialBounds spatialBounds) {
+        SpaceBoundsUpdatedEvent event = new SpaceBoundsUpdatedEvent(
+                this.id,
+                this.spaceCode,
+                this.tenantId,
+                spatialBounds,
+                this.updatedAt,
+                this.updatedBy
+        );
+        addDomainEvent(event);
     }
 
     /**

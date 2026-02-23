@@ -1,7 +1,7 @@
 package com.hkt.iot.workflow.delegate;
 
-import com.hkt.iot.workflow.exception.SystemException;
-import com.hkt.iot.workflow.exception.WorkflowErrorCode;
+import com.hkt.iot.workflow.interfaces.feign.RuleEvaluationRequest;
+import com.hkt.iot.workflow.interfaces.feign.RuleEvaluationResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.camunda.bpm.engine.delegate.BpmnError;
 import org.camunda.bpm.engine.delegate.DelegateExecution;
@@ -9,11 +9,10 @@ import org.camunda.bpm.engine.delegate.JavaDelegate;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Map;
 
 /**
- * 自动派单Delegate
+ * 自动派单委托类 - 调用规则引擎
  * 根据业务规则自动分配工单给处理人
  *
  * @author HKT IoT Team
@@ -23,49 +22,76 @@ import java.util.List;
 @Slf4j
 public class AutoAssignDelegate implements JavaDelegate {
 
+    // TODO: 注入规则引擎 Feign Client
+    // private final RuleEngineFeignClient ruleEngineClient;
+
     @Override
     public void execute(DelegateExecution execution) throws Exception {
         try {
-            String tenantId = execution.getVariable("tenantId") != null 
-                ? execution.getVariable("tenantId").toString() 
-                : null;
-            String spaceId = execution.getVariable("spaceId") != null 
-                ? execution.getVariable("spaceId").toString() 
-                : null;
-            String priority = execution.getVariable("priority") != null 
-                ? execution.getVariable("priority").toString() 
-                : "NORMAL";
+            // 1. 获取流程变量
+            String tenantId = execution.getVariable("tenantId") != null
+                    ? execution.getVariable("tenantId").toString()
+                    : null;
+            String workOrderType = execution.getVariable("workOrderType") != null
+                    ? execution.getVariable("workOrderType").toString()
+                    : null;
+            String spaceId = execution.getVariable("spaceId") != null
+                    ? execution.getVariable("spaceId").toString()
+                    : null;
+            String priority = execution.getVariable("priority") != null
+                    ? execution.getVariable("priority").toString()
+                    : "NORMAL";
 
-            log.info("Auto assigning task: tenantId={}, spaceId={}, priority={}", 
-                tenantId, spaceId, priority);
+            log.info("Auto assigning task: tenantId={}, workOrderType={}, spaceId={}, priority={}",
+                    tenantId, workOrderType, spaceId, priority);
 
-            // TODO: 实现自动派单逻辑
-            // 1. 查询该空间下的所有可用处理人
-            // 2. 根据优先级和技能匹配
-            // 3. 根据当前工单负载均衡
-            // 4. 返回分配的处理人ID
+            // 2. 构造规则评估请求
+            RuleEvaluationRequest request = new RuleEvaluationRequest();
+            request.setTenantId(tenantId);
+            request.setRuleSetKey("auto-assign-rules");
+            request.setRuleSetName("自动派单规则集");
+            request.setFacts(Map.of(
+                    "workOrderType", workOrderType,
+                    "spaceId", spaceId,
+                    "priority", priority
+            ));
 
-            // 临时实现：分配给默认处理人
-            String assignee = findAssignee(tenantId, spaceId, priority);
-            
-            execution.setVariable("assignee", assignee);
-            execution.setVariable("autoAssignTime", java.time.LocalDateTime.now().toString());
+            // 3. 调用规则引擎 (TODO: 待注入 Feign Client)
+            // RuleEvaluationResponse response = ruleEngineClient.evaluateRule(request);
+            RuleEvaluationResponse response = mockEvaluateRule(request);
 
-            log.info("Task auto assigned to: {}", assignee);
+            if (response != null && response.isSuccess()) {
+                // 4. 设置流程变量
+                String assigneeId = (String) response.getResults().get("assigneeId");
+                execution.setVariable("assigneeId", assigneeId);
+                execution.setVariable("assignSuccess", true);
+                execution.setVariable("assignReason", (String) response.getResults().get("assignReason"));
+
+                log.info("Task auto assigned to: {}, reason: {}", assigneeId, response.getResults().get("assignReason"));
+            } else {
+                execution.setVariable("assignSuccess", false);
+                log.warn("Auto assign failed: {}", response != null ? response.getMessage() : "unknown error");
+            }
 
         } catch (Exception e) {
             log.error("Auto assign failed", e);
-            throw new BpmnError("AUTO_ASSIGN_ERROR", 
-                "Failed to auto assign: " + e.getMessage());
+            execution.setVariable("assignSuccess", false);
+            throw new BpmnError("AUTO_ASSIGN_ERROR",
+                    "Failed to auto assign: " + e.getMessage());
         }
     }
 
     /**
-     * 查找合适的处理人
+     * 模拟规则引擎评估（临时实现）
      */
-    private String findAssignee(String tenantId, String spaceId, String priority) {
-        // TODO: 实现真正的派单算法
-        // 这里返回默认值
-        return "auto-assignee-" + priority.toLowerCase();
+    private RuleEvaluationResponse mockEvaluateRule(RuleEvaluationRequest request) {
+        RuleEvaluationResponse response = new RuleEvaluationResponse();
+        response.setSuccess(true);
+        response.setResults(Map.of(
+                "assigneeId", "user-" + System.currentTimeMillis() % 100,
+                "assignReason", "技能匹配且负载最低"
+        ));
+        response.setMatchedRules(java.util.List.of("rule-001", "rule-002"));
+        return response;
     }
 }
