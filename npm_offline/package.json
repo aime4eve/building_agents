@@ -1,0 +1,16 @@
+{
+  "name": "openspec-offline-installer",
+  "version": "1.0.0",
+  "description": "OpenSpec Offline Installation Package",
+  "private": true,
+  "scripts": {
+    "install-offline": "npm install --offline --no-audit --no-fund",
+    "install-global": "npm install -g ./packages/fission-ai-openspec-1.2.0.tgz"
+  },
+  "dependencies": {
+    "@fission-ai/openspec": "file:./packages/fission-ai-openspec-1.2.0.tgz"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}
